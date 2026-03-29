@@ -1,0 +1,62 @@
+# ── Gradle ────────────────────────────────────────────────────────────────────
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# ── Android Studio / IntelliJ ─────────────────────────────────────────────────
+*.iml
+.idea/
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+local.properties
+*.xml.bak
+
+# ── Android build outputs ─────────────────────────────────────────────────────
+/captures/
+.externalNativeBuild/
+.cxx/
+app/release/
+app/build/
+*/build/
+
+# ── Signing ───────────────────────────────────────────────────────────────────
+keystore.properties
+*.jks
+*.keystore
+
+# ── Firebase ──────────────────────────────────────────────────────────────────
+# Service account — contains a private RSA key, NEVER commit
+server/config/serviceAccount.json
+server/.local/
+
+# ── Node.js / Server ──────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+server/dist/
+
+# ── Environment & Secrets ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.production
+.secrets/
+
+# ── Crash / Heap dumps ────────────────────────────────────────────────────────
+*.hprof
+java_pid*.hprof
+hs_err_pid*.log
+
+# ── Temp / Log files ──────────────────────────────────────────────────────────
+*.log
+ffmpeg_log*.txt
+ffmpeg_mp3.txt
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Kotlin daemon ─────────────────────────────────────────────────────────────
+.kotlin/

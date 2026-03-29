@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AuraCast — Audio Cast</title>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d27;--card:#22263a;--accent:#6c63e6;--green:#06d6a0;--yellow:#ffd166;--red:#ef476f;--txt:#fff;--txt2:#888;--border:#2e3251}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 20px 60px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+header{text-align:center;margin-bottom:32px}
+header h1{font-size:1.9rem;font-weight:700;letter-spacing:.06em}
+.subtitle{color:var(--txt2);font-size:.82rem;margin-top:4px}
+.nav{font-size:.82rem;margin-top:8px}
+.wrap{width:100%;max-width:640px;display:flex;flex-direction:column;gap:20px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px}
+.card h2{font-size:1rem;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.08em}
+label{font-size:.85rem;color:var(--txt2)}
+select,input[type=file]{width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--txt);padding:10px 12px;font-size:.9rem;font-family:inherit;outline:none;cursor:pointer}
+select:focus{border-color:var(--accent)}
+.drop-zone{border:2px dashed var(--border);border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
+.drop-zone.over{border-color:var(--accent);background:#6c63e610}
+.drop-zone.has-file{border-color:var(--green);background:#06d6a010}
+.drop-zone p{color:var(--txt2);font-size:.88rem;pointer-events:none}
+.drop-zone .file-name{color:var(--green);font-weight:600;font-size:.9rem}
+.progress-bar{height:6px;border-radius:4px;background:var(--card);overflow:hidden;display:none}
+.progress-bar-fill{height:100%;background:var(--accent);width:0;transition:width .2s}
+.btn-row{display:flex;gap:10px}
+.btn{flex:1;padding:12px 0;border-radius:10px;border:none;font-size:.92rem;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s,transform .08s}
+.btn:active{transform:scale(.97)}
+.btn:hover:not(:disabled){opacity:.82}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-upload{background:var(--accent);color:#fff}
+.btn-play{background:var(--green);color:#0f1117}
+.btn-stop{background:var(--red);color:#fff}
+.status-badge{display:inline-flex;align-items:center;gap:7px;padding:5px 14px;border-radius:20px;font-size:.8rem;font-weight:700;border:1px solid transparent}
+.status-idle{color:var(--txt2);border-color:var(--border)}
+.status-playing{color:var(--green);border-color:var(--green);background:#06d6a012}
+.status-stopped{color:var(--yellow);border-color:#ffd16660;background:#ffd1660d}
+.status-error{color:var(--red);border-color:var(--red);background:#ef476f10}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.dot.blink{animation:blink 1s step-end infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.history-list{list-style:none;display:flex;flex-direction:column;gap:8px}
+.history-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.history-name{font-size:.85rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-meta{font-size:.75rem;color:var(--txt2)}
+.btn-sm{padding:6px 14px;border-radius:8px;border:none;font-size:.8rem;font-weight:600;cursor:pointer;font-family:inherit;background:var(--accent);color:#fff;white-space:nowrap}
+.btn-sm:hover{opacity:.8}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);padding:10px 22px;border-radius:12px;font-size:.85rem;opacity:0;transition:opacity .25s;pointer-events:none;z-index:99}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎵 Audio Cast</h1>
+  <p class="subtitle">Upload audio to the server and play it on the Android device</p>
+  <p class="nav"><a href="/">← Dashboard</a></p>
+</header>
+
+<div class="wrap">
+
+  <!-- Stream selector -->
+  <div class="card">
+    <h2>Target Device</h2>
+    <label for="stream-select">Connected stream</label>
+    <select id="stream-select"><option value="">— loading streams —</option></select>
+  </div>
+
+  <!-- Upload -->
+  <div class="card">
+    <h2>Upload Audio</h2>
+    <div class="drop-zone" id="drop-zone">
+      <p id="drop-label">Drag &amp; drop an audio file here, or click to browse</p>
+      <p class="file-name" id="file-name-display" style="display:none"></p>
+      <input type="file" id="file-input" accept="audio/*" style="display:none">
+    </div>
+    <div class="progress-bar" id="progress-bar"><div class="progress-bar-fill" id="progress-fill"></div></div>
+    <button class="btn btn-upload" id="btn-upload" disabled>Upload to Server</button>
+  </div>
+
+  <!-- Playback controls -->
+  <div class="card">
+    <h2>Playback</h2>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span id="status-badge" class="status-badge status-idle"><span class="dot"></span>idle</span>
+      <span id="audio-label" style="font-size:.82rem;color:var(--txt2)">No audio uploaded yet</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-play"  id="btn-play"  disabled>▶  Play on Device</button>
+      <button class="btn btn-stop"  id="btn-stop"  disabled>⏹  Stop on Device</button>
+    </div>
+  </div>
+
+  <!-- Upload history -->
+  <div class="card" id="history-card" style="display:none">
+    <h2>Recent Uploads</h2>
+    <ul class="history-list" id="history-list"></ul>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+</body>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  let currentAudioId   = null;
+  let currentAudioName = null;
+  const history        = []; // [{audioId, name, downloadUrl}]
+
+  // ── DOM refs ───────────────────────────────────────────────────────────────
+  const streamSelect  = document.getElementById('stream-select');
+  const dropZone      = document.getElementById('drop-zone');
+  const fileInput     = document.getElementById('file-input');
+  const fileNameDisp  = document.getElementById('file-name-display');
+  const dropLabel     = document.getElementById('drop-label');
+  const progressBar   = document.getElementById('progress-bar');
+  const progressFill  = document.getElementById('progress-fill');
+  const btnUpload     = document.getElementById('btn-upload');
+  const btnPlay       = document.getElementById('btn-play');
+  const btnStop       = document.getElementById('btn-stop');
+  const statusBadge   = document.getElementById('status-badge');
+  const audioLabel    = document.getElementById('audio-label');
+  const historyCard   = document.getElementById('history-card');
+  const historyList   = document.getElementById('history-list');
+  const toast         = document.getElementById('toast');
+
+  let selectedFile = null;
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  let toastTimer = null;
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+
+  // ── Status badge ───────────────────────────────────────────────────────────
+  function setStatus(state, label) {
+    statusBadge.className = 'status-badge status-' + state;
+    const dot = document.createElement('span');
+    dot.className = 'dot' + (state === 'playing' ? ' blink' : '');
+    statusBadge.innerHTML = '';
+    statusBadge.appendChild(dot);
+    statusBadge.appendChild(document.createTextNode('\u00a0' + label));
+  }
+
+  // ── Load streams ───────────────────────────────────────────────────────────
+  async function loadStreams() {
+    try {
+      const r = await fetch('/streams');
+      const list = await r.json();
+      streamSelect.innerHTML = '';
+      if (!list.length) {
+        streamSelect.innerHTML = '<option value="">— no active streams —</option>';
+        return;
+      }
+      for (const s of list) {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        const icon = s.phoneConnected ? '🟢' : '🔴';
+        opt.textContent = `${icon} ${s.displayName || s.id.slice(0, 8)}`;
+        streamSelect.appendChild(opt);
+      }
+    } catch { streamSelect.innerHTML = '<option value="">— fetch failed —</option>'; }
+  }
+  loadStreams();
+  setInterval(loadStreams, 5000);
+</script>
+
+  // ── File selection ─────────────────────────────────────────────────────────
+  function onFileChosen(file) {
+    if (!file || !file.type.startsWith('audio/')) { showToast('Please select an audio file'); return; }
+    selectedFile = file;
+    fileNameDisp.textContent = file.name + ' (' + (file.size / 1024 / 1024).toFixed(2) + ' MB)';
+    fileNameDisp.style.display = 'block';
+    dropLabel.style.display = 'none';
+    dropZone.classList.add('has-file');
+    btnUpload.disabled = false;
+  }
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) onFileChosen(fileInput.files[0]); });
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('over');
+    if (e.dataTransfer.files[0]) onFileChosen(e.dataTransfer.files[0]);
+  });
+
+  // ── Upload ─────────────────────────────────────────────────────────────────
+  btnUpload.addEventListener('click', () => {
+    if (!selectedFile) return;
+    const formData = new FormData();
+    formData.append('audio', selectedFile, selectedFile.name);
+
+    const xhr = new XMLHttpRequest();
+    progressBar.style.display = 'block';
+    progressFill.style.width = '0%';
+    btnUpload.disabled = true;
+
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) progressFill.style.width = ((e.loaded / e.total) * 100).toFixed(1) + '%';
+    };
+    xhr.onload = () => {
+      progressBar.style.display = 'none';
+      try {
+        const res = JSON.parse(xhr.responseText);
+        if (res.ok) {
+          currentAudioId   = res.audioId;
+          currentAudioName = res.name;
+          audioLabel.textContent = res.name;
+          btnPlay.disabled = !streamSelect.value;
+          btnStop.disabled = false;
+          setStatus('idle', 'ready');
+          showToast('✅ Uploaded: ' + res.name);
+          addHistory({ audioId: res.audioId, name: res.name, downloadUrl: res.downloadUrl });
+        } else {
+          showToast('Upload failed: ' + (res.error || xhr.status));
+          btnUpload.disabled = false;
+        }
+      } catch { showToast('Upload failed (parse error)'); btnUpload.disabled = false; }
+    };
+    xhr.onerror = () => { progressBar.style.display = 'none'; showToast('Network error during upload'); btnUpload.disabled = false; };
+    xhr.open('POST', '/audio-upload');
+    xhr.send(formData);
+  });
+
+  streamSelect.addEventListener('change', () => {
+    btnPlay.disabled = !streamSelect.value || !currentAudioId;
+  });
+
+  // ── Play / Stop ────────────────────────────────────────────────────────────
+  async function sendCommand(action, audioId) {
+    const streamId = streamSelect.value;
+    if (!streamId) { showToast('Select a stream first'); return; }
+    try {
+      const url = action === 'play' ? `/audio-play?id=${encodeURIComponent(streamId)}`
+                                    : `/audio-stop?id=${encodeURIComponent(streamId)}`;
+      const body = action === 'play' ? JSON.stringify({ audioId }) : '{}';
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      const data = await r.json();
+      if (data.ok) {
+        if (action === 'play') {
+          setStatus('playing', 'playing');
+          showToast('▶ Playing: ' + (currentAudioName || audioId));
+        } else {
+          setStatus('stopped', 'stopped');
+          showToast('⏹ Stopped');
+        }
+      } else {
+        setStatus('error', 'error');
+        showToast('Error: ' + (data.error || r.status));
+      }
+    } catch (e) { setStatus('error', 'error'); showToast('Network error: ' + e.message); }
+  }
+
+  btnPlay.addEventListener('click', () => sendCommand('play', currentAudioId));
+  btnStop.addEventListener('click', () => sendCommand('stop', null));
+
+  // ── History ────────────────────────────────────────────────────────────────
+  function addHistory(entry) {
+    history.unshift(entry);
+    if (history.length > 5) history.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    if (!history.length) { historyCard.style.display = 'none'; return; }
+    historyCard.style.display = 'block';
+    historyList.innerHTML = '';
+    for (const h of history) {
+      const li = document.createElement('li');
+      li.className = 'history-item';
+      li.innerHTML = `<span class="history-name">${h.name}</span>
+        <button class="btn-sm" data-id="${h.audioId}" data-name="${h.name}">▶ Replay</button>`;
+      li.querySelector('.btn-sm').addEventListener('click', () => {
+        currentAudioId   = h.audioId;
+        currentAudioName = h.name;
+        audioLabel.textContent = h.name;
+        btnPlay.disabled = !streamSelect.value;
+        setStatus('idle', 'ready');
+        sendCommand('play', h.audioId);
+      });
+      historyList.appendChild(li);
+    }
+  }
+
+})();
+</script>

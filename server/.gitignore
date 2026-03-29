@@ -1,0 +1,21 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Build output
+dist/
+
+# Environment secrets
+.env
+.env.local
+.env.production
+
+# Firebase service account (private key — NEVER commit)
+config/serviceAccount.json
+
+# Local dev audio files
+.local/
+
+# OS
+.DS_Store
+Thumbs.db

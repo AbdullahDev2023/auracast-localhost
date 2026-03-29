@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AuraCast</string>
+    <string name="main_tagline">24/7 Audio Streaming</string>
+    <string name="main_label_tap_to_stream">Tap to Stream</string>
+    <string name="main_label_streaming_live">Streaming Live…</string>
+    <string name="main_label_connecting">Connecting…</string>
+    <string name="main_label_reconnecting">Reconnecting…</string>
+    <string name="main_label_mic_error">Mic Error — Tap to retry</string>
+    <string name="main_status_idle">● Idle</string>
+    <string name="main_status_live">● LIVE</string>
+    <string name="main_status_connecting">● Connecting</string>
+    <string name="main_status_reconnecting">● Reconnecting</string>
+    <string name="main_status_connected_idle">● Connected — Idle</string>
+    <string name="main_status_mic_error">● Mic Error</string>
+    <string name="main_stream_id_format">Stream ID: %1$s</string>
+    <string name="main_stream_id_placeholder">Stream ID: …</string>
+    <string name="notif_channel_name">AuraCast Streaming</string>
+    <string name="notif_channel_desc">Active while streaming audio to PC</string>
+    <string name="cd_mic_icon">Microphone</string>
+    <string name="setup_warn_icon">⚠️ </string>
+    <string name="setup_permission_warning">Sab permissions zaroori hain. Please allow karein.</string>
+    <string name="setup_button_request_permissions_again">Permission Dobara Maango</string>
+    <string name="setup_button_open_app_settings">App Settings Kholein (manually allow)</string>
+    <string name="setup_title_permissions">Microphone Permission Chahiye</string>
+    <string name="setup_desc_permissions"><![CDATA[AuraCast ko aapki awaaz sunne ke liye Microphone permission zaroori hai.
+
+Yeh bhi zaroori hai:
+• Phone State — call ke waqt mic automatically band karne ke liye
+• Notifications — streaming status dikhane ke liye]]></string>
+    <string name="setup_button_allow_permissions">Permission Allow Karein ✓</string>
+    <string name="setup_title_battery">Battery Restriction Hatao</string>
+    <string name="setup_desc_battery"><![CDATA[Android battery optimization se AuraCast ko background mein band kar deta hai.
+
+Next screen mein "Allow" tap karein — warna streaming automatically ruk jaayegi.]]></string>
+    <string name="setup_button_open_battery_settings">Battery Setting Kholein →</string>
+    <string name="setup_title_autostart">Autostart Permission (%1$s)</string>
+    <string name="setup_desc_autostart"><![CDATA[%1$s apne aap apps ko background mein band kar deta hai.
+
+Neeche button dabao → settings mein AuraCast ke saamne toggle ON karo → wapas aao aur confirm karo.]]></string>
+    <string name="setup_button_autostart_confirm">Haan, Maine ON Kar Diya ✓</string>
+    <string name="setup_button_autostart_reopen">Nahi hua — Settings Dobara Kholein</string>
+    <string name="setup_button_autostart_open">Autostart Settings Kholein →</string>
+    <string name="setup_autostart_return_title">Autostart Enable Hua? 🤔</string>
+    <string name="setup_autostart_return_message"><![CDATA[Kya aapne settings mein AuraCast ke saamne Autostart / Background launch toggle ON kar diya?
+
+Agar haan — neeche "Haan" dabao.
+Agar nahi — "Wapas Jao" se settings dobara kholein.]]></string>
+    <string name="setup_autostart_return_positive">Haan, kar diya ✓</string>
+    <string name="setup_autostart_return_negative">Nahi, wapas jao</string>
+    <string name="autostart_guide_title">⚙️ Background Permission</string>
+    <string name="autostart_guide_description">AuraCast ko background mein chalane ke liye yeh permission ek baar deni hogi. Nahi di toh streaming automatically band ho jaayegi. 😟</string>
+    <string name="autostart_guide_steps_label">Yeh steps follow karo:</string>
+    <string name="autostart_guide_tip_icon">💡 </string>
+    <string name="autostart_guide_skip">Baad mein</string>
+    <string name="autostart_guide_open_settings">Settings kholein →</string>
+</resources>

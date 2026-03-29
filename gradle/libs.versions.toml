@@ -1,0 +1,62 @@
+[versions]
+agp               = "8.7.3"
+kotlin            = "2.1.0"
+coreKtx           = "1.13.1"
+junit             = "4.13.2"
+junitVersion      = "1.1.5"
+espressoCore      = "3.5.1"
+appcompat         = "1.7.0"
+material          = "1.12.0"
+constraintlayout  = "2.2.1"
+lifecycle         = "2.8.7"
+activityKtx       = "1.9.3"
+okhttp            = "4.12.0"
+coroutines        = "1.8.1"
+# Firebase versions are managed through the BOM — individual version entries
+# are kept only for the Gradle plugin (not the SDK libraries).
+firebase-bom              = "33.7.0"
+firebase-crashlytics-gradle = "3.0.2"
+google-services           = "4.4.2"
+workmanager               = "2.9.1"
+
+[libraries]
+# AndroidX
+androidx-core-ktx         = { group = "androidx.core",           name = "core-ktx",          version.ref = "coreKtx" }
+androidx-appcompat        = { group = "androidx.appcompat",       name = "appcompat",          version.ref = "appcompat" }
+material                  = { group = "com.google.android.material", name = "material",        version.ref = "material" }
+androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
+
+# Lifecycle
+lifecycle-viewmodel-ktx   = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+lifecycle-livedata-ktx    = { group = "androidx.lifecycle", name = "lifecycle-livedata-ktx",  version.ref = "lifecycle" }
+lifecycle-service         = { group = "androidx.lifecycle", name = "lifecycle-service",        version.ref = "lifecycle" }
+lifecycle-runtime-ktx     = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx",   version.ref = "lifecycle" }
+activity-ktx              = { group = "androidx.activity",  name = "activity-ktx",             version.ref = "activityKtx" }
+
+# Networking
+okhttp                    = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+
+# Coroutines
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-test    = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test",    version.ref = "coroutines" }
+
+# Firebase — managed via BOM so individual SDK versions stay in sync
+firebase-bom          = { group = "com.google.firebase", name = "firebase-bom",               version.ref = "firebase-bom" }
+firebase-database     = { group = "com.google.firebase", name = "firebase-database-ktx" }
+firebase-crashlytics  = { group = "com.google.firebase", name = "firebase-crashlytics-ktx" }
+firebase-analytics    = { group = "com.google.firebase", name = "firebase-analytics-ktx" }
+
+# WorkManager
+workmanager           = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workmanager" }
+
+# Testing
+junit                 = { group = "junit",            name = "junit",              version.ref = "junit" }
+androidx-junit        = { group = "androidx.test.ext", name = "junit",             version.ref = "junitVersion" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+
+[plugins]
+android-application   = { id = "com.android.application",       version.ref = "agp" }
+android-library       = { id = "com.android.library",           version.ref = "agp" }
+kotlin-android        = { id = "org.jetbrains.kotlin.android",   version.ref = "kotlin" }
+google-services       = { id = "com.google.gms.google-services", version.ref = "google-services" }
+firebase-crashlytics  = { id = "com.google.firebase.crashlytics", version.ref = "firebase-crashlytics-gradle" }

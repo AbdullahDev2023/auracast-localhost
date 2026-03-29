@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AuraCast — Player</title>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics-compat.js"></script>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d27;--card:#22263a;--accent:#6c63e6;--accent2:#06d6a0;--warn:#ffd166;--err:#ef476f;--txt:#fff;--txt2:#888;--border:#2e3251}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px 20px 60px}
+header{text-align:center;margin-bottom:28px}
+header h1{font-size:1.7rem;font-weight:700;letter-spacing:.06em}
+.stream-id{color:var(--txt2);font-size:.75rem;font-family:monospace;margin-top:4px;word-break:break-all;max-width:400px}
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--txt2);font-size:.8rem;text-decoration:none;margin-bottom:20px;transition:color .2s}
+.back:hover{color:var(--txt)}
+.ring-wrap{position:relative;width:160px;height:160px;display:flex;align-items:center;justify-content:center;margin-bottom:24px}
+.ring-outer{position:absolute;inset:0;border-radius:50%;border:2px solid var(--accent);opacity:.35;transition:opacity .4s,box-shadow .4s}
+.ring-outer.live{opacity:1;box-shadow:0 0 48px 8px #6c63e640;animation:pulse-ring 1.6s ease-in-out infinite}
+.ring-inner{width:116px;height:116px;border-radius:50%;background:#6c63e618;display:flex;align-items:center;justify-content:center;transition:background .4s}
+.ring-inner.live{background:#6c63e630}
+.mic-svg{width:46px;height:46px;fill:var(--txt);transition:fill .3s}
+.mic-svg.live{fill:var(--accent2)}
+@keyframes pulse-ring{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.1);opacity:.7}}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:.85rem;font-weight:600;background:var(--card);color:var(--txt2);border:1px solid var(--border);margin-bottom:24px;transition:all .3s}
+.badge.live{color:var(--accent2);border-color:var(--accent2);background:#06d6a015}
+.badge.connecting{color:var(--warn);border-color:var(--warn);background:#ffd16615}
+.badge.error{color:var(--err);border-color:var(--err);background:#ef476f15}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.dot.blink{animation:blink 1s step-end infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+canvas{width:100%;max-width:480px;height:80px;border-radius:12px;background:var(--card);border:1px solid var(--border);margin-bottom:22px;display:block}
+.controls{display:flex;align-items:center;gap:16px;margin-bottom:24px}
+.btn-listen{padding:11px 32px;border-radius:28px;border:none;background:var(--accent);color:#fff;font-size:.9rem;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .2s,transform .1s}
+.btn-listen:hover:not(:disabled){opacity:.85;transform:scale(1.02)}
+.btn-listen:disabled{opacity:.35;cursor:not-allowed}
+.vol-wrap{display:flex;align-items:center;gap:8px;color:var(--txt2);font-size:.85rem}
+input[type=range]{-webkit-appearance:none;width:100px;height:4px;border-radius:4px;background:var(--border);outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer}
+.stats-bar{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;font-size:.78rem;color:var(--txt2);font-family:monospace}
+.stat span{color:var(--txt);font-weight:600}
+.browser-warn{margin-top:14px;color:var(--warn);font-size:.82rem;text-align:center;display:none}
+.phone-offline{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#ffd16620;border:1px solid var(--warn);color:var(--warn);padding:8px 20px;border-radius:20px;font-size:.82rem;font-weight:600;display:none}
+.phone-offline.show{display:block}
+
+/* ── Audio Transport Controls ─────────────────────────────────────────── */
+.controls-panel{width:100%;max-width:520px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 20px;margin-bottom:22px;display:flex;flex-direction:column;gap:14px}
+.transport-row{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+.ctrl-btn{width:48px;height:48px;border-radius:50%;border:none;cursor:pointer;font-size:1.15rem;display:flex;align-items:center;justify-content:center;transition:opacity .15s,transform .1s,background .2s,box-shadow .2s;font-family:inherit;position:relative}
+.ctrl-btn:hover:not(:disabled){opacity:.85;transform:scale(1.07)}
+.ctrl-btn:active:not(:disabled){transform:scale(.96)}
+.ctrl-btn:disabled{opacity:.3;cursor:not-allowed}
+.ctrl-btn.play{background:var(--accent);color:#fff;box-shadow:0 0 14px #6c63e640;width:56px;height:56px;font-size:1.3rem}
+.ctrl-btn.play:hover:not(:disabled){box-shadow:0 0 22px #6c63e670}
+.ctrl-btn.pause{background:var(--card);color:var(--txt);border:1px solid var(--border)}
+.ctrl-btn.stop{background:var(--card);color:var(--err);border:1px solid #ef476f44}
+.ctrl-btn.loop{background:var(--card);color:var(--txt2);border:1px solid var(--border)}
+.ctrl-btn.loop.active{background:#06d6a015;color:var(--accent2);border-color:var(--accent2);box-shadow:0 0 10px #06d6a030}
+.ctrl-btn.mute{background:var(--card);color:var(--txt2);border:1px solid var(--border)}
+.ctrl-btn.mute.muted{background:#ef476f15;color:var(--err);border-color:#ef476f55}
+.ctrl-btn-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:.6rem;color:var(--txt2);white-space:nowrap;letter-spacing:.04em;font-weight:600;text-transform:uppercase}
+.vol-section{display:flex;flex-direction:column;gap:6px}
+.vol-row{display:flex;align-items:center;gap:10px}
+.vol-icon{font-size:.95rem;flex-shrink:0;line-height:1}
+.vol-track{position:relative;flex:1;height:20px;display:flex;align-items:center}
+input.vol-slider{-webkit-appearance:none;width:100%;height:5px;border-radius:5px;background:var(--border);outline:none;cursor:pointer;transition:background .2s}
+input.vol-slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 6px #6c63e660;transition:transform .1s}
+input.vol-slider::-webkit-slider-thumb:hover{transform:scale(1.2)}
+.vol-label{min-width:38px;text-align:right;font-size:.78rem;font-weight:700;color:var(--txt);font-family:monospace}
+.vol-hint{font-size:.68rem;color:var(--txt2);text-align:right}
+</style>
+<style>
+/* Control Panel */
+.cp-divider{width:100%;max-width:860px;border:none;border-top:1px solid var(--border);margin:36px 0 28px}
+.cp-header{width:100%;max-width:860px;display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.cp-header h2{font-size:1.05rem;font-weight:700;letter-spacing:.03em}
+.fb-indicator{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--txt2)}
+.fb-indicator .fd{width:7px;height:7px;border-radius:50%;background:var(--txt2);transition:background .3s}
+.fb-indicator.ok{color:var(--accent2)}.fb-indicator.ok .fd{background:var(--accent2);animation:blink 2s step-end infinite}
+.fb-indicator.err{color:var(--err)}.fb-indicator.err .fd{background:var(--err)}
+.cp-grid{width:100%;max-width:860px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.cp-grid{grid-template-columns:1fr}}
+.cp-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+.cp-card.wide{grid-column:1/-1}
+.cp-card-title{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--txt2);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+.cp-row{display:flex;align-items:center;justify-content:space-between;font-size:.82rem;padding:5px 0;border-bottom:1px solid #ffffff07}
+.cp-row:last-child{border-bottom:none}
+.cp-label{color:var(--txt2)}.cp-val{color:var(--txt);font-weight:600;font-family:monospace;font-size:.8rem;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-val.green{color:var(--accent2)}.cp-val.amber{color:var(--warn)}.cp-val.red{color:var(--err)}.cp-val.grey{color:var(--txt2)}
+.btn-grid{display:flex;gap:10px;flex-wrap:wrap}
+.cmd-btn{flex:1;min-width:80px;padding:9px 14px;border-radius:10px;border:none;font-size:.82rem;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s,transform .1s;background:var(--accent);color:#fff}
+.cmd-btn:hover:not(:disabled){opacity:.8;transform:scale(1.02)}.cmd-btn:disabled{opacity:.35;cursor:not-allowed}
+.cmd-btn.secondary{background:var(--card);color:var(--txt);border:1px solid var(--border)}
+.cmd-btn.danger{background:#ef476f22;color:var(--err);border:1px solid #ef476f55}
+.cmd-btn.danger:hover{background:#ef476f44}
+.cmd-btn.success{background:#06d6a022;color:var(--accent2);border:1px solid #06d6a055}
+.cmd-btn.success:hover{background:#06d6a033}
+.url-input-row{display:flex;gap:10px;margin-top:10px}
+.url-input{flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--txt);font-size:.82rem;font-family:monospace;outline:none}
+.url-input:focus{border-color:var(--accent)}.url-input::placeholder{color:var(--txt2);font-family:'Segoe UI',sans-serif}
+.crash-toggle{background:none;border:none;color:var(--err);cursor:pointer;font-size:.8rem;font-family:inherit;font-weight:600;padding:0;display:flex;align-items:center;gap:5px}
+.crash-section{display:none;margin-top:14px}.crash-section.open{display:block}
+.crash-warn{font-size:.75rem;color:var(--warn);margin-bottom:12px;padding:6px 10px;background:#ffd16610;border-radius:6px;border-left:3px solid var(--warn)}
+.cmd-log{max-height:150px;overflow-y:auto;margin-top:4px}
+.log-entry{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #ffffff07;font-size:.77rem}
+.log-entry:last-child{border-bottom:none}
+.log-ts{color:var(--txt2);font-family:monospace;white-space:nowrap;font-size:.72rem}.log-cmd{font-weight:700;color:var(--accent);white-space:nowrap}
+.log-url{color:var(--txt2);font-family:monospace;overflow:hidden;text-overflow:ellipsis;flex:1;white-space:nowrap;font-size:.72rem}
+.log-st{margin-left:auto;font-size:.7rem;white-space:nowrap}.log-st.ok{color:var(--accent2)}.log-st.pending{color:var(--warn)}
+.hint{font-size:.72rem;color:var(--txt2);margin-top:8px;line-height:1.5}.hint code{background:var(--card);padding:1px 5px;border-radius:4px;font-family:monospace}
+/* Quality card */
+.q-presets{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.q-btn{padding:8px 4px;border-radius:9px;border:1px solid var(--border);background:var(--card);color:var(--txt2);font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;text-align:center}
+.q-btn:hover{border-color:var(--accent);color:var(--txt)}
+.q-btn.active{border-color:var(--accent);background:#6c63e622;color:var(--accent)}
+.q-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;margin-bottom:14px}
+.q-field{display:flex;flex-direction:column;gap:5px}
+.q-label{font-size:.7rem;color:var(--txt2);font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+.q-select{background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--txt);padding:7px 10px;font-size:.82rem;font-family:monospace;outline:none;cursor:pointer;width:100%}
+.q-select:focus{border-color:var(--accent)}
+.q-apply-row{display:flex;gap:8px;margin-top:4px}
+.q-live-badge{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;font-weight:700;color:var(--accent2);background:#06d6a015;border:1px solid #06d6a040;border-radius:6px;padding:2px 7px}
+.toast-wrap{position:fixed;top:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:999;pointer-events:none}
+.toast{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:.82rem;pointer-events:none;animation:fadeSlide .2s ease;transition:opacity .3s}
+.toast.ok{border-color:var(--accent2);color:var(--accent2)}.toast.err{border-color:var(--err);color:var(--err)}.toast.warn{border-color:var(--warn);color:var(--warn)}
+@keyframes fadeSlide{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+/* Audio Cast Drop Zone */
+.drop-zone{border:2px dashed var(--border);border-radius:12px;padding:28px 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;position:relative;margin-bottom:16px}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:#6c63e610}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop-icon{font-size:2rem;margin-bottom:8px}
+.drop-label{font-size:.85rem;color:var(--txt2)}
+.drop-label strong{color:var(--txt)}
+.file-info{display:none;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:.82rem}
+.file-info.show{display:flex}
+.file-icon{font-size:1.4rem}
+.file-meta{flex:1;overflow:hidden}
+.file-name{font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-size{color:var(--txt2);font-size:.75rem;margin-top:2px}
+.file-remove{background:none;border:none;color:var(--txt2);cursor:pointer;font-size:1rem;padding:4px;transition:color .2s}
+.file-remove:hover{color:var(--err)}
+.cast-btn-row{display:flex;gap:10px}
+.cast-progress{display:none;margin-top:12px;font-size:.78rem;color:var(--txt2)}
+.cast-progress.show{display:block}
+.cast-bar-wrap{width:100%;height:4px;background:var(--border);border-radius:4px;margin-top:6px;overflow:hidden}
+.cast-bar{height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width .2s}
+.cast-status{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.8rem;color:var(--txt2)}
+.cast-status.playing{color:var(--accent2)}.cast-status.stopped{color:var(--txt2)}.cast-status.error{color:var(--err)}
+/* Cast Transport Panel */
+.cast-transport-panel{margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.cast-tr-row{display:flex;align-items:flex-end;justify-content:center;gap:14px;flex-wrap:wrap}
+.cast-ctrl-wrap{display:flex;flex-direction:column;align-items:center;gap:5px}
+.cast-ctrl-lbl{font-size:.6rem;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.cast-loop-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cast-loop-btn{padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--txt2);font-size:.78rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
+.cast-loop-btn:hover{border-color:var(--accent);color:var(--txt)}
+.cast-loop-btn.active{background:#6c63e622;color:var(--accent);border-color:var(--accent)}
+.cast-loop-btn.active-green{background:#06d6a015;color:var(--accent2);border-color:var(--accent2)}
+.cast-loop-count{width:52px;padding:5px 7px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--txt);font-size:.82rem;font-family:monospace;outline:none;text-align:center}
+.cast-loop-count:focus{border-color:var(--accent)}
+.cast-vol-row{display:flex;align-items:center;gap:10px}
+/* ── Seek bar ────────────────────────────────────────────────────────────── */
+.seek-section{display:flex;flex-direction:column;gap:6px}
+.seek-row{display:flex;align-items:center;gap:10px}
+.seek-time{font-size:.75rem;color:var(--txt2);font-family:monospace;min-width:38px;flex-shrink:0}
+.seek-time.current{text-align:right}
+.seek-track{position:relative;flex:1;height:20px;display:flex;align-items:center}
+input.seek-slider{-webkit-appearance:none;width:100%;height:5px;border-radius:5px;background:var(--border);outline:none;cursor:pointer;transition:background .2s}
+input.seek-slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent2);cursor:pointer;box-shadow:0 0 6px #06d6a060;transition:transform .1s}
+input.seek-slider::-webkit-slider-thumb:hover{transform:scale(1.2)}
+input.seek-slider:disabled{opacity:.35;cursor:not-allowed}
+.seek-hint{font-size:.68rem;color:var(--txt2);text-align:right}
+</style>
+</head>
+<body>
+
+<a class="back" href="/">← Back to Dashboard</a>
+<header>
+  <h1>🎙 AuraCast</h1>
+  <p class="stream-id" id="streamIdLabel">Loading stream…</p>
+</header>
+
+<div class="ring-wrap">
+  <div class="ring-outer" id="ringOuter"></div>
+  <div class="ring-inner" id="ringInner">
+    <svg class="mic-svg" id="micSvg" viewBox="0 0 24 24">
+      <path d="M12,14c1.66,0 3,-1.34 3,-3V5c0,-1.66-1.34,-3-3,-3S9,3.34 9,5v6
+               c0,1.66 1.34,3 3,3zM17,11c0,2.76-2.24,5-5,5s-5,-2.24-5,-5H5
+               c0,3.53 2.61,6.43 6,6.92V21h2v-3.08c3.39,-0.49 6,-3.39 6,-6.92h-2z"/>
+    </svg>
+  </div>
+</div>
+
+<div class="badge" id="badge"><div class="dot" id="dot"></div><span id="badgeText">Click Listen to start</span></div>
+<canvas id="waveCanvas" width="960" height="160"></canvas>
+<div class="controls-panel">
+  <!-- Transport row -->
+  <div class="transport-row">
+    <!-- Play -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <button class="ctrl-btn play" id="btnPlay" onclick="startListening()" title="Start listening">▶</button>
+      <span style="font-size:.6rem;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Play</span>
+    </div>
+    <!-- Pause / Resume -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <button class="ctrl-btn pause" id="btnPause" onclick="togglePause()" disabled title="Pause / Resume audio">⏸</button>
+      <span id="pauseLabel" style="font-size:.6rem;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Pause</span>
+    </div>
+    <!-- Stop -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <button class="ctrl-btn stop" id="btnStop" onclick="stopListening()" disabled title="Stop stream &amp; disconnect">⏹</button>
+      <span style="font-size:.6rem;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Stop</span>
+    </div>
+    <!-- Loop -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <button class="ctrl-btn loop" id="btnLoop" onclick="toggleLoop()" title="Loop — auto-reconnect when stream drops">🔁</button>
+      <span style="font-size:.6rem;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Loop</span>
+    </div>
+    <!-- Mute -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <button class="ctrl-btn mute" id="btnMute" onclick="toggleMute()" title="Mute / Unmute">🔊</button>
+      <span style="font-size:.6rem;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Mute</span>
+    </div>
+  </div>
+
+  <!-- Volume row -->
+  <div class="vol-section">
+    <div class="vol-row">
+      <span class="vol-icon" id="volIcon">🔉</span>
+      <div class="vol-track">
+        <input class="vol-slider" type="range" id="volSlider" min="0" max="300" value="100" oninput="setVolume(this.value)">
+      </div>
+      <span class="vol-icon">🔊</span>
+      <span class="vol-label" id="volLabel">100%</span>
+    </div>
+    <div class="vol-hint">Volume · 0 – 300% boost · drag to adjust</div>
+  </div>
+</div>
+<div class="stats-bar">
+  <div class="stat">Frames <span id="sFrames">—</span></div>
+  <div class="stat" title="Cumulative bytes received by the server this session">Total <span id="sKb">—</span> KB</div>
+  <div class="stat" title="Server-measured throughput (bytes delta ÷ interval)">Live <span id="sKbps">—</span> kbps</div>
+  <div class="stat" title="Audio playback buffer depth at the browser decoder">Buffer <span id="sBuf">—</span> ms</div>
+  <div class="stat" title="Uptime of the current phone connection session — resets on reconnect">Session <span id="sUp">—</span></div>
+  <div class="stat">Phone <span id="sPhone">—</span></div>
+  <div class="stat">Mode <span id="sMode">—</span></div>
+</div>
+<div class="browser-warn" id="browserWarn"></div>
+<div class="phone-offline" id="phoneOffline">📱 Phone not streaming</div>
+
+<hr class="cp-divider">
+<div class="cp-header">
+  <h2>🔧 Remote Control</h2>
+  <div class="fb-indicator" id="fbIndicator"><div class="fd"></div><span id="fbIndText">Connecting…</span></div>
+</div>
+
+<div class="cp-grid">
+  <div class="cp-card">
+    <div class="cp-card-title">📱 Phone Status</div>
+    <div class="cp-row"><span class="cp-label">Status</span><span class="cp-val grey" id="fbStatus">—</span></div>
+    <div class="cp-row"><span class="cp-label">Server Host</span><span class="cp-val" id="fbStatusUrl" title="">—</span></div>
+    <div class="cp-row"><span class="cp-label">Last updated</span><span class="cp-val" id="fbUpdated">—</span></div>
+  </div>
+  <div class="cp-card">
+    <div class="cp-card-title">📊 Stream Metrics <span style="font-size:.65rem;font-weight:400;letter-spacing:0">(~60 s)</span></div>
+    <div class="cp-row"><span class="cp-label">Frames / sec</span><span class="cp-val" id="fbFps">—</span></div>
+    <div class="cp-row"><span class="cp-label">Bitrate</span><span class="cp-val" id="fbKbps">—</span></div>
+    <div class="cp-row"><span class="cp-label">Uptime</span><span class="cp-val" id="fbUptime">—</span></div>
+    <div class="cp-row"><span class="cp-label">Quality</span><span class="cp-val" id="fbQuality">—</span></div>
+  </div>
+  <div class="cp-card">
+    <div class="cp-card-title">⚡ Quick Commands</div>
+    <div class="btn-grid">
+      <button class="cmd-btn success"   onclick="sendCmd('start')">▶ Start</button>
+      <button class="cmd-btn danger"    onclick="sendCmd('stop')">⏹ Stop</button>
+      <button class="cmd-btn secondary" onclick="sendCmd('reconnect')">🔄 Reconnect</button>
+    </div>
+    <p class="hint">⚠ <strong>Start</strong> only works while app is open in foreground.</p>
+  </div>
+  <div class="cp-card">
+    <div class="cp-card-title">🔗 Change Server URL (Live)</div>
+    <div class="url-input-row">
+      <input class="url-input" id="newUrlInput" type="text" placeholder="wss://domain.ngrok-free.app/stream" oninput="validateUrlBtn('newUrlInput','btnChangeUrl')">
+      <button class="cmd-btn" id="btnChangeUrl" onclick="sendChangeUrl()" disabled style="flex:0;min-width:56px">Send</button>
+    </div>
+    <p class="hint">Sends <code>change_url</code> — phone reconnects instantly.</p>
+  </div>
+  <div class="cp-card">
+    <div class="cp-card-title">⚙️ Firebase Config URL</div>
+    <div class="cp-row"><span class="cp-label">Current config</span><span class="cp-val" id="fbConfigUrl" title="">Loading…</span></div>
+    <div class="url-input-row">
+      <input class="url-input" id="configUrlInput" type="text" placeholder="wss://new-domain.ngrok-free.app/stream" oninput="validateUrlBtn('configUrlInput','btnSaveConfig')">
+      <button class="cmd-btn" id="btnSaveConfig" onclick="saveConfigUrl()" disabled style="flex:0;min-width:56px">💾 Save</button>
+    </div>
+    <p class="hint">Updates <code>/auracast_config/serverUrl</code> — app reads on next launch.</p>
+  </div>
+  <div class="cp-card">
+    <div class="cp-card-title">🧨 Crash Tests <button class="crash-toggle" onclick="toggleCrash()" id="crashToggleBtn">▶ expand</button></div>
+    <div class="crash-section" id="crashSection">
+      <div class="crash-warn">⚠ Intentionally crashes the app to verify START_STICKY. Restarts in ~5s.</div>
+      <div class="btn-grid">
+        <button class="cmd-btn danger" onclick="sendCmd('crash_app')">Main Thread</button>
+        <button class="cmd-btn danger" onclick="sendCmd('crash_service')">BG Thread</button>
+        <button class="cmd-btn danger" onclick="sendCmd('crash_audio')">Audio Fail</button>
+        <button class="cmd-btn danger" onclick="sendCmd('crash_oom')">OOM</button>
+        <button class="cmd-btn danger" onclick="sendCmd('crash_null')">NPE</button>
+      </div>
+    </div>
+  </div>
+  <div class="cp-card wide">
+    <div class="cp-card-title">
+      🎚️ Audio Quality
+      <span class="q-live-badge">⚡ Live — no mic restart</span>
+    </div>
+
+    <!-- Preset quick-buttons -->
+    <div class="q-presets">
+      <button class="q-btn" id="qp-low"    onclick="applyPreset('low')">📉 Low<br><span style="font-size:.65rem;font-weight:400;color:var(--txt2)">16 kbps · 48 kHz</span></button>
+      <button class="q-btn" id="qp-medium" onclick="applyPreset('medium')">📊 Medium<br><span style="font-size:.65rem;font-weight:400;color:var(--txt2)">64 kbps · 48 kHz</span></button>
+      <button class="q-btn" id="qp-high"   onclick="applyPreset('high')">🔊 High<br><span style="font-size:.65rem;font-weight:400;color:var(--txt2)">128 kbps · 48 kHz</span></button>
+      <button class="q-btn" id="qp-hd"     onclick="applyPreset('hd')">💎 HD<br><span style="font-size:.65rem;font-weight:400;color:var(--txt2)">192 kbps · 48 kHz</span></button>
+    </div>
+
+    <!-- Fine-grained controls -->
+    <div class="q-grid">
+      <div class="q-field">
+        <label class="q-label">Bitrate (kbps)</label>
+        <select class="q-select" id="qBitrate" onchange="clearPresetHighlight()">
+          <option value="16000">16 kbps — minimal</option>
+          <option value="32000">32 kbps — voice</option>
+          <option value="64000">64 kbps — balanced</option>
+          <option value="96000">96 kbps — good</option>
+          <option value="128000">128 kbps — high</option>
+          <option value="192000" selected>192 kbps — HD max</option>
+        </select>
+      </div>
+      <div class="q-field">
+        <label class="q-label">Frame Size</label>
+        <select class="q-select" id="qFrameMs" onchange="clearPresetHighlight()">
+          <option value="20">20 ms — low latency</option>
+          <option value="40">40 ms — balanced</option>
+          <option value="60" selected>60 ms — efficient</option>
+        </select>
+      </div>
+      <div class="q-field">
+        <label class="q-label">Opus Complexity (0–10)</label>
+        <select class="q-select" id="qComplexity" onchange="clearPresetHighlight()">
+          <option value="5">5 — fast / low CPU</option>
+          <option value="7">7 — balanced</option>
+          <option value="9">9 — high quality</option>
+          <option value="10" selected>10 — maximum</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="q-apply-row">
+      <button class="cmd-btn" style="flex:2" onclick="sendQuality()">⚙️ Apply Full Config</button>
+      <button class="cmd-btn secondary" style="flex:1" onclick="sendBitrateOnly()" title="Hot-swaps only the encoder bitrate — no mic restart, instant effect">⚡ Bitrate Only</button>
+    </div>
+    <p class="hint">
+      <strong>Apply Full Config</strong> — restarts the Opus encoder with all four parameters.<br>
+      <strong>Bitrate Only</strong> — swaps just the bitrate instantly; capture stays at 48 kHz.
+      Allowed bitrates: 16 / 32 / 64 / 96 / 128 / 192 kbps.
+    </p>
+  </div>
+
+  <!-- ── Audio File Cast ───────────────────────────────────────────────────── -->
+  <div class="cp-card wide">
+    <div class="cp-card-title">
+      🎵 Cast Audio File to Device
+      <span id="castStatus" style="font-size:.72rem;font-weight:400;letter-spacing:0;color:var(--txt2)">● idle</span>
+    </div>
+
+    <!-- Row 1: File picker + drop zone -->
+    <div class="drop-zone" id="dropZone"
+         ondragover="acDragOver(event)" ondragleave="acDragLeave(event)" ondrop="acDrop(event)">
+      <div class="drop-icon">🎵</div>
+      <div class="drop-label"><strong>Drag &amp; drop an audio file here</strong><br>MP3 · WAV · OGG · FLAC · M4A · AAC</div>
+      <div style="margin-top:12px">
+        <label for="acFileInput" class="cmd-btn" style="cursor:pointer;display:inline-block;padding:9px 22px;border-radius:10px">
+          📂 Browse File
+        </label>
+        <input type="file" id="acFileInput" accept="audio/*" style="display:none" onchange="acFileChosen(this.files[0])">
+      </div>
+    </div>
+
+    <!-- Row 2: Selected file info bar -->
+    <div class="file-info" id="acFileInfo">
+      <div class="file-icon">🎧</div>
+      <div class="file-meta">
+        <div class="file-name" id="acFileName">—</div>
+        <div class="file-size" id="acFileSize">—</div>
+      </div>
+      <button class="file-remove" onclick="acClearFile()" title="Remove file">✕</button>
+    </div>
+
+    <!-- Row 3: Upload progress bar -->
+    <div class="cast-progress" id="castProgress">
+      <span id="castProgressLabel">Uploading…</span>
+      <div class="cast-bar-wrap"><div class="cast-bar" id="castBar"></div></div>
+    </div>
+
+    <!-- ── Cast Transport Controls ───────────────────────────────────────── -->
+    <div class="cast-transport-panel" id="castTransportPanel">
+
+      <!-- Row A: Play / Pause / Resume / Stop -->
+      <div class="cast-tr-row">
+        <!-- Play / Cast -->
+        <div class="cast-ctrl-wrap">
+          <button class="ctrl-btn play" id="btnCast" onclick="acUploadAndCast()" disabled
+                  style="opacity:.35" title="Select a file first">▶</button>
+          <span class="cast-ctrl-lbl">Cast</span>
+        </div>
+        <!-- Pause -->
+        <div class="cast-ctrl-wrap">
+          <button class="ctrl-btn pause" id="btnCastPause" onclick="acPauseCast()" disabled title="Pause playback on device">⏸</button>
+          <span class="cast-ctrl-lbl" id="castPauseLabel">Pause</span>
+        </div>
+        <!-- Resume -->
+        <div class="cast-ctrl-wrap">
+          <button class="ctrl-btn" id="btnCastResume" onclick="acResumeCast()" disabled
+                  style="background:var(--card);color:var(--accent2);border:1px solid #06d6a044"
+                  title="Resume playback on device">⏵</button>
+          <span class="cast-ctrl-lbl">Resume</span>
+        </div>
+        <!-- Stop -->
+        <div class="cast-ctrl-wrap">
+          <button class="ctrl-btn stop" id="btnStopCast" onclick="acStopCast()" disabled title="Stop &amp; clear audio on device">⏹</button>
+          <span class="cast-ctrl-lbl">Stop</span>
+        </div>
+      </div>
+
+      <!-- Row A2: Seek bar -->
+      <div class="seek-section" style="width:100%">
+        <div class="seek-row">
+          <span class="seek-time current" id="castSeekCurrent">0:00</span>
+          <div class="seek-track">
+            <input class="seek-slider" type="range" id="castSeekBar"
+                   min="0" max="100" value="0" step="1"
+                   oninput="onSeekInput(this.value)"
+                   onchange="onSeekCommit(this.value)"
+                   disabled title="Seek — drag to jump to position on device">
+          </div>
+          <span class="seek-time" id="castSeekTotal">0:00</span>
+        </div>
+        <div class="seek-hint">Seek · drag to jump to position on device</div>
+      </div>
+
+      <!-- Row B: Loop options -->
+      <div class="cast-loop-row">
+        <span style="font-size:.72rem;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.06em;flex-shrink:0">Loop</span>
+        <button class="cast-loop-btn active" id="loopOff"       onclick="setCastLoop('off')">&#x1F6AB; Off</button>
+        <button class="cast-loop-btn"        id="loopN"         onclick="setCastLoop('n')">&#x1F502; &times; N</button>
+        <input  class="cast-loop-count"      id="loopCount" type="number" min="1" max="99" value="3" title="Repeat count">
+        <button class="cast-loop-btn"        id="loopInfinite"  onclick="setCastLoop('infinite')">&#x1F501; &infin;</button>
+      </div>
+
+      <!-- Row C: Device cast volume -->
+      <div class="cast-vol-row">
+        <span class="vol-icon" id="castVolIcon">&#x1F509;</span>
+        <div class="vol-track" style="flex:1">
+          <input class="vol-slider" type="range" id="castVolSlider" min="0" max="100" value="100"
+                 oninput="setCastVolume(this.value)" title="Cast volume sent to device">
+        </div>
+        <span class="vol-icon">&#x1F50A;</span>
+        <span class="vol-label" id="castVolLabel">100%</span>
+        <span style="font-size:.68rem;color:var(--txt2);margin-left:4px">device vol</span>
+      </div>
+
+    </div><!-- /cast-transport-panel -->
+
+    <p class="hint" style="margin-top:10px">
+      Drop or browse an audio file &#8594; uploads to server &#8594; Android device downloads &amp; plays it.<br>
+      <strong>Pause / Resume / Loop / Volume</strong> send live commands to the device after casting.
+    </p>
+  </div>
+
+  <div class="cp-card wide">
+    <div class="cp-card-title">📋 Command Log <button onclick="clearLog()" style="background:none;border:none;color:var(--txt2);cursor:pointer;font-size:.7rem;font-family:inherit;font-weight:600">Clear</button></div>
+    <div class="cmd-log" id="cmdLog"><div class="log-entry" style="color:var(--txt2)">No commands sent yet</div></div>
+  </div>
+</div>
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+// ── Stream identity from URL ──────────────────────────────────────────────────
+const streamId = new URLSearchParams(location.search).get('id');
+if (!streamId) {
+  document.body.innerHTML = '<div style="text-align:center;padding:60px;color:#888"><h2>Missing ?id= parameter</h2><a href="/" style="color:#6c63e6">← Back to Dashboard</a></div>';
+  throw new Error('No stream ID');
+}
+document.getElementById('streamIdLabel').textContent = 'Stream: ' + streamId;
+document.title = 'AuraCast — ' + streamId.slice(0,8);
+
+// ── Browser compat check ──────────────────────────────────────────────────────
+(function checkBrowser() {
+  if (typeof AudioDecoder === 'undefined') {
+    const w = document.getElementById('browserWarn');
+    w.style.display = 'block';
+    w.textContent = '⚠ WebCodecs API not found. Chrome 94+ or Edge 94+ required.';
+    document.getElementById('btnPlay').disabled = true;
+  }
+})();
+
+// ── Firebase init ─────────────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey:            "AIzaSyCGDP96k8yaqmQg9kzcGqjPRMjBEz88EGc",
+  authDomain:        "auracast-df815.firebaseapp.com",
+  databaseURL:       "https://auracast-df815-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "auracast-df815",
+  storageBucket:     "auracast-df815.firebasestorage.app",
+  messagingSenderId: "283586693826",
+  appId:             "1:283586693826:web:479ceb723259cf1e25895b",
+  measurementId:     "G-VKFX92HRGS"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ── Per-stream Firebase refs (scoped to /users/{streamId}/) ───────────────────
+const statusRef   = db.ref('users/' + streamId + '/status');
+const realtimeRef = db.ref('users/' + streamId + '/realtime');
+const controlRef  = db.ref('users/' + streamId + '/control');
+const configRef   = db.ref('auracast_config/serverUrl');   // shared across all users
+
+// ── Firebase helpers ──────────────────────────────────────────────────────────
+const $cp = id => document.getElementById(id);
+function timeAgo(ms) {
+  const s = Math.floor((Date.now() - ms) / 1000);
+  return s < 5 ? 'just now' : s < 60 ? s+'s ago' : Math.floor(s/60)+'m ago';
+}
+function fmtUptimeFb(s) {
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=s%60;
+  return h?`${h}h ${m}m`:m?`${m}m ${ss}s`:`${ss}s`;
+}
+function setFbIndicator(state, text) {
+  $cp('fbIndicator').className = 'fb-indicator ' + state;
+  $cp('fbIndText').textContent  = text;
+}
+const STATUS_COLORS = { CONNECTED:'green',CONNECTING:'amber',RECONNECTING:'amber',DISCONNECTED:'grey',MIC_ERROR:'red',IDLE:'grey' };
+
+statusRef.on('value', snap => {
+  setFbIndicator('ok', 'Firebase connected ✓');
+  const d = snap.val(); if (!d) return;
+  $cp('fbStatus').textContent = d.status || '—';
+  $cp('fbStatus').className   = 'cp-val ' + (STATUS_COLORS[d.status] || 'grey');
+  const host = (d.serverUrl||'').replace(/^wss?:\/\//,'').split('/')[0];
+  $cp('fbStatusUrl').textContent = host || '—';
+  $cp('fbStatusUrl').title       = d.serverUrl || '';
+  if (d.updatedAt) $cp('fbUpdated').textContent = timeAgo(d.updatedAt);
+}, err => setFbIndicator('err', 'Firebase error: ' + err.code));
+
+realtimeRef.on('value', snap => {
+  const d = snap.val(); if (!d) return;
+  $cp('fbFps').textContent    = d.framesPerSec!=null ? d.framesPerSec.toFixed(1)+' fps' : '—';
+  $cp('fbKbps').textContent   = d.kbps!=null ? d.kbps.toFixed(1)+' kbps' : '—';
+  $cp('fbUptime').textContent = d.uptimeSec!=null ? fmtUptimeFb(d.uptimeSec) : '—';
+  $cp('fbQuality').textContent= d.quality || '—';
+});
+
+configRef.on('value', snap => {
+  const url = snap.val() || '';
+  $cp('fbConfigUrl').textContent = url.replace(/^wss?:\/\//,'').split('/')[0] || '(not set)';
+  $cp('fbConfigUrl').title = url;
+});
+
+setInterval(() => {
+  statusRef.once('value', snap => {
+    const d = snap.val();
+    if (d && d.updatedAt) $cp('fbUpdated').textContent = timeAgo(d.updatedAt);
+  });
+}, 15000);
+
+function genCommandId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+}
+function sendCmd(command, extra) {
+  const commandId = genCommandId();
+  // Use set() on the root control node — matches what FirebaseRemoteController.kt listens on.
+  // commandId is the dedup key; CommandProcessor on Android prevents double-execution
+  // even if the WS and Firebase both deliver the same command.
+  const payload = Object.assign({ commandId, command, ts: Date.now(), source: 'firebase', processed: false, processedAt: null }, extra || {});
+  controlRef.set(payload)
+    .then(() => { showToast('✓ Sent via Firebase: '+command, 'ok'); addLog(command, extra&&extra.url||null, commandId); })
+    .catch(e => showToast('✗ '+e.message, 'err'));
+}
+function sendChangeUrl() {
+  const url = $cp('newUrlInput').value.trim();
+  if (!isWsUrl(url)) { showToast('Must start with ws:// or wss://','warn'); return; }
+  sendCmd('change_url',{url}); $cp('newUrlInput').value=''; $cp('btnChangeUrl').disabled=true;
+}
+function saveConfigUrl() {
+  const url = $cp('configUrlInput').value.trim();
+  if (!isWsUrl(url)) { showToast('Must start with ws:// or wss://','warn'); return; }
+  configRef.set(url).then(()=>{ showToast('✓ Config URL saved','ok'); $cp('configUrlInput').value=''; $cp('btnSaveConfig').disabled=true; }).catch(e=>showToast('✗ '+e.message,'err'));
+}
+function isWsUrl(v){ return v.startsWith('ws://')||v.startsWith('wss://'); }
+function validateUrlBtn(inp,btn){ $cp(btn).disabled=!isWsUrl($cp(inp).value.trim()); }
+function toggleCrash(){ const o=$cp('crashSection').classList.toggle('open'); $cp('crashToggleBtn').textContent=o?'▼ collapse':'▶ expand'; }
+const cmdHistory=[];
+function addLog(cmd, url, commandId, confirmed = false) {
+  const entry = { cmd, url, ts: new Date().toTimeString().slice(0,8), processed: confirmed };
+  cmdHistory.unshift(entry);
+  if (cmdHistory.length > 20) cmdHistory.pop();
+  renderLog();
+
+  // WS/HTTP commands arrive confirmed=true immediately (HTTP 200 is our ack).
+  // Firebase commands pass a commandId and wait for processed=true in RTDB.
+  if (!commandId || confirmed) return;
+  // Watch the root control node for processed=true with matching commandId
+  const timeout = setTimeout(() => controlRef.off('value', listener), 90_000);
+  const listener = controlRef.on('value', snap => {
+    const d = snap.val();
+    if (d && d.processed && d.commandId === commandId) {
+      entry.processed = true;
+      renderLog();
+      controlRef.off('value', listener);
+      clearTimeout(timeout);
+    }
+  });
+}
+function renderLog(){
+  const el=$cp('cmdLog');
+  if(!cmdHistory.length){el.innerHTML='<div class="log-entry" style="color:var(--txt2)">No commands sent yet</div>';return;}
+  el.innerHTML=cmdHistory.map(e=>`<div class="log-entry"><span class="log-ts">${e.ts}</span><span class="log-cmd">${e.cmd}</span><span style="font-size:.65rem;color:#ffca28;margin-left:2px" title="Sent via Firebase RTDB">🔥</span>${e.url?`<span class="log-url" title="${e.url}">${e.url.replace(/^wss?:\/\//,'').split('/')[0]}</span>`:'<span class="log-url"></span>'}<span class="log-st ${e.processed?'ok':'pending'}">${e.processed?'✓ confirmed':'⏳ pending'}</span></div>`).join('');
+}
+function clearLog(){cmdHistory.length=0;renderLog();}
+// ── Audio quality controls ────────────────────────────────────────────────────
+const PRESETS = {
+  low:    { bitrate: 16000,  sampleRate: 48000, frameMs: 20, complexity: 5  },
+  medium: { bitrate: 64000,  sampleRate: 48000, frameMs: 40, complexity: 7  },
+  high:   { bitrate: 128000, sampleRate: 48000, frameMs: 40, complexity: 9  },
+  hd:     { bitrate: 192000, sampleRate: 48000, frameMs: 60, complexity: 10 },
+};
+
+function applyPreset(name) {
+  const p = PRESETS[name]; if (!p) return;
+  $('qBitrate').value     = p.bitrate;
+  $('qFrameMs').value     = p.frameMs;
+  $('qComplexity').value  = p.complexity;
+  // Highlight the active preset button
+  ['low','medium','high','hd'].forEach(k =>
+    $cp('qp-'+k).classList.toggle('active', k === name)
+  );
+  sendQuality(name);
+}
+
+function clearPresetHighlight() {
+  ['low','medium','high','hd'].forEach(k => $cp('qp-'+k).classList.remove('active'));
+}
+
+async function sendQuality(presetLabel) {
+  const body = {
+    bitrate:    parseInt($cp('qBitrate').value),
+    sampleRate: 48000,
+    frameMs:    parseInt($cp('qFrameMs').value),
+    complexity: parseInt($cp('qComplexity').value),
+  };
+  const label = presetLabel ? `quality:${presetLabel}` : `quality:custom`;
+  try {
+    const r   = await fetch(`/stream-quality?id=${encodeURIComponent(streamId)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (j.ok || j.applied) {
+      const via = j.channel==='firebase' ? '🔥 Firebase' : '⚡ WS';
+      showToast(`✓ Quality applied${presetLabel ? ' ('+presetLabel+')' : ''} via ${via}`, 'ok');
+      // confirmed=true because HTTP 200 is our ack — no Firebase watch needed
+      addLog(label, JSON.stringify(body), null, /*confirmed=*/true);
+    } else {
+      showToast('✗ ' + (j.error || 'Server error'), 'err');
+      addLog(label, 'FAILED: '+(j.error||'?'), null, /*confirmed=*/false);
+    }
+  } catch(e) { showToast('✗ ' + e.message, 'err'); }
+}
+
+async function sendBitrateOnly() {
+  const bps = parseInt($cp('qBitrate').value);
+  try {
+    const r = await fetch(`/stream-bitrate?id=${encodeURIComponent(streamId)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bps }),
+    });
+    const j = await r.json();
+    if (j.ok) {
+      const via = j.channel==='firebase' ? '🔥 Firebase' : '⚡ WS';
+      showToast(`✓ Bitrate → ${bps/1000} kbps via ${via}`, 'ok');
+      addLog('bitrate-only', bps+'bps', null, /*confirmed=*/true);
+    } else {
+      showToast('✗ ' + (j.error || 'Server error'), 'err');
+      addLog('bitrate-only', 'FAILED: '+(j.error||'?'), null, /*confirmed=*/false);
+    }
+  } catch(e) { showToast('✗ ' + e.message, 'err'); }
+}
+
+function showToast(msg,type){
+  const wrap=$cp('toastWrap');const t=document.createElement('div');
+  t.className='toast '+(type||'ok');t.textContent=msg;wrap.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),300);},3200);
+}
+</script>
+
+<script>
+// ── Audio player ──────────────────────────────────────────────────────────────
+let CODEC_CONFIG = { codec:'opus', sampleRate:48000, channels:1, frameMs:60 };
+const JITTER_FRAMES = 2, RESYNC_MS = 40;
+// Per-stream WebSocket URL — includes streamId so server routes to correct channel
+const WS_URL = (location.protocol==='https:'?'wss://':'ws://') + location.host + '/listen?id=' + encodeURIComponent(streamId);
+let audioCtx=null,gainNode=null,analyser=null,ws=null;
+let opusDecoder=null,opusTimestamp=0;
+let nextPlayTime=0,frameQueue=[],draining=false;
+let started=false,totalFrames=0,reconnectTimer=null,wsStaleTimer=null;
+let lastWsMessageTime=0;
+let _volDebounce=null,_userDragging=false;
+let _prevKbVal=0,_prevKbTime=0;
+let _paused=false, _muted=false, _loopEnabled=false, _savedGain=1.0;
+const $ = id => document.getElementById(id);
+
+function setStatus(text,mode){
+  $('badge').className='badge '+(mode||'');
+  $('badgeText').textContent=text;
+  $('dot').className='dot'+(mode==='live'?' blink':'');
+  const live=mode==='live';
+  $('ringOuter').className='ring-outer'+(live?' live':'');
+  $('ringInner').className='ring-inner'+(live?' live':'');
+  $('micSvg').className='mic-svg'+(live?' live':'');
+}
+function fmtUptime(s){ const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=s%60; return h?`${h}h ${m}m`:m?`${m}m ${ss}s`:`${ss}s`; }
+function initOpusDecoder(cfg){
+  if(opusDecoder&&opusDecoder.state!=='closed') opusDecoder.close();
+  opusTimestamp=0;
+  opusDecoder=new AudioDecoder({ output:onDecodedAudioData, error:e=>console.error('[AC] decoder err:',e) });
+  opusDecoder.configure({ codec:cfg.codec||'opus', sampleRate:cfg.sampleRate||16000, numberOfChannels:cfg.channels||1 });
+}
+function onDecodedAudioData(audioData){
+  const f32=new Float32Array(audioData.numberOfFrames);
+  audioData.copyTo(f32,{planeIndex:0,format:'f32'}); audioData.close();
+  if(!draining){ frameQueue.push(f32); if(frameQueue.length>=JITTER_FRAMES){draining=true;frameQueue.forEach(scheduleFrame);frameQueue=[];} }
+  else scheduleFrame(f32);
+  totalFrames++; updateStats();
+}
+function decodeOpusFrame(ab){
+  if(!opusDecoder||opusDecoder.state==='closed') return;
+  try{ opusDecoder.decode(new EncodedAudioChunk({type:'key',timestamp:opusTimestamp,data:ab})); opusTimestamp+=CODEC_CONFIG.frameMs*1000; }
+  catch(e){ console.error('[AC] decode:',e); }
+}
+function startListening(){
+  if(started) return; started=true;
+  $('btnPlay').disabled=true; $('btnPlay').style.opacity='.35';
+  $('btnPause').disabled=false; $('btnStop').disabled=false;
+  const AC=window.AudioContext||window.webkitAudioContext;
+  audioCtx=new AC({latencyHint:'interactive',sampleRate:48000});
+  gainNode=audioCtx.createGain(); gainNode.gain.value=1.0;
+  analyser=audioCtx.createAnalyser(); analyser.fftSize=512;
+  gainNode.connect(analyser); analyser.connect(audioCtx.destination);
+  initOpusDecoder(CODEC_CONFIG); drawWaveform(); connectWebSocket();
+}
+function setVolume(v){
+  const gain=v/100;
+  if(gainNode && !_muted) gainNode.gain.value=gain;
+  _savedGain=gain;
+  // Update icons and label
+  const pct=Math.round(v);
+  $('volLabel').textContent=pct+'%';
+  $('volIcon').textContent=pct===0?'🔇':pct<80?'🔈':'🔉';
+  _userDragging=true;
+  clearTimeout(_volDebounce);
+  _volDebounce=setTimeout(()=>{
+    fetch('/volume',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gain})})
+      .catch(()=>{});
+    setTimeout(()=>{ _userDragging=false; },2100);
+  },300);
+}
+
+function togglePause(){
+  if(!audioCtx) return;
+  _paused=!_paused;
+  if(_paused){
+    audioCtx.suspend();
+    $('btnPause').textContent='▶';
+    $('btnPause').title='Resume audio';
+    $('btnPause').style.background='#06d6a022';
+    $('btnPause').style.color='var(--accent2)';
+    $('btnPause').style.borderColor='#06d6a055';
+    $('pauseLabel').textContent='Resume';
+    setStatus('⏸ Paused','connecting');
+  } else {
+    audioCtx.resume();
+    $('btnPause').textContent='⏸';
+    $('btnPause').title='Pause audio';
+    $('btnPause').style.background='';
+    $('btnPause').style.color='';
+    $('btnPause').style.borderColor='';
+    $('pauseLabel').textContent='Pause';
+    setStatus('● Live','live');
+  }
+}
+
+function stopListening(){
+  if(!started) return;
+  // Close WebSocket
+  if(ws){
+    ws.onopen=null; ws.onclose=null; ws.onerror=null; ws.onmessage=null;
+    if(ws.readyState===WebSocket.OPEN||ws.readyState===WebSocket.CONNECTING) ws.close(1000,'user-stop');
+    ws=null;
+  }
+  clearTimeout(reconnectTimer); clearInterval(wsStaleTimer);
+  // Close AudioContext
+  if(audioCtx){ audioCtx.close(); audioCtx=null; }
+  gainNode=null; analyser=null;
+  // Reset decoder
+  if(opusDecoder&&opusDecoder.state!=='closed') opusDecoder.close(); opusDecoder=null;
+  // Reset state
+  started=false; _paused=false; frameQueue=[]; draining=false;
+  // Reset buttons
+  $('btnPlay').disabled=false; $('btnPlay').style.opacity='';
+  $('btnPause').disabled=true; $('btnPause').textContent='⏸';
+  $('btnPause').style.background=''; $('btnPause').style.color=''; $('btnPause').style.borderColor='';
+  $('pauseLabel').textContent='Pause';
+  $('btnStop').disabled=true;
+  setStatus('Click Play to start','');
+  $('sFrames').textContent='—'; $('sKb').textContent='—'; $('sKbps').textContent='—';
+  $('sBuf').textContent='—'; $('sUp').textContent='—';
+}
+
+function toggleMute(){
+  if(!gainNode) return;
+  _muted=!_muted;
+  const btn=$('btnMute');
+  if(_muted){
+    gainNode.gain.value=0;
+    btn.textContent='🔇'; btn.title='Unmute'; btn.classList.add('muted');
+    showToast('🔇 Muted','warn');
+  } else {
+    gainNode.gain.value=_savedGain;
+    const pct=Math.round(_savedGain*100);
+    btn.textContent=pct===0?'🔇':pct<80?'🔈':'🔊';
+    btn.title='Mute'; btn.classList.remove('muted');
+    showToast('🔊 Unmuted','ok');
+  }
+}
+
+function toggleLoop(){
+  _loopEnabled=!_loopEnabled;
+  const btn=$('btnLoop');
+  btn.classList.toggle('active',_loopEnabled);
+  btn.title=_loopEnabled?'Loop ON — will auto-reconnect':'Loop OFF';
+  showToast(_loopEnabled?'🔁 Loop enabled — auto-reconnect ON':'Loop disabled','ok');
+}
+function connectWebSocket(){
+  clearTimeout(reconnectTimer); clearInterval(wsStaleTimer);
+  // Tear down any existing socket BEFORE creating a new one.
+  // Without this, stale listener sockets remain registered on the server and
+  // it sends every audio frame to both the old and new socket — causing echo.
+  if(ws){
+    ws.onopen=null; ws.onclose=null; ws.onerror=null; ws.onmessage=null;
+    if(ws.readyState===WebSocket.OPEN||ws.readyState===WebSocket.CONNECTING) ws.close(1000,'reconnect');
+    ws=null;
+  }
+  setStatus('Connecting…','connecting');
+  ws=new WebSocket(WS_URL); ws.binaryType='arraybuffer';
+  ws.onopen=()=>{
+    setStatus('● Live','live'); lastWsMessageTime=Date.now();
+    frameQueue=[]; draining=false; opusTimestamp=0;
+    _prevKbVal=0; _prevKbTime=0; $('sKbps').textContent='—';  // reset kbps on reconnect
+    nextPlayTime=audioCtx.currentTime+JITTER_FRAMES*(CODEC_CONFIG.frameMs/1000)+0.05;
+    wsStaleTimer=setInterval(()=>{
+      if(!ws||ws.readyState!==WebSocket.OPEN) return;
+      if(Date.now()-lastWsMessageTime>12_000){ clearInterval(wsStaleTimer); ws.close(4000,'stale'); }
+    },4000);
+  };
+  ws.onclose=()=>{
+    clearInterval(wsStaleTimer);
+    if(!started) return; // user hit Stop — don't reconnect
+    setStatus('Reconnecting…','connecting');
+    if(_loopEnabled || true) { // always reconnect unless user stops; loop flag is for cast files
+      reconnectTimer=setTimeout(connectWebSocket,3000);
+    }
+  };
+  ws.onerror=()=>setStatus('Connection error','error');
+  ws.onmessage=evt=>{ lastWsMessageTime=Date.now(); typeof evt.data==='string'?handleText(evt.data):decodeOpusFrame(evt.data); };
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible'||!started) return;
+  // Only reconnect if truly disconnected — avoid spinning up a second socket
+  // alongside an already-open one (which causes double-playback / echo).
+  if(!ws||ws.readyState===WebSocket.CLOSED||ws.readyState===WebSocket.CLOSING){
+    clearTimeout(reconnectTimer);
+    connectWebSocket();
+  }
+});
+function handleText(raw){
+  try{
+    const m=JSON.parse(raw);
+    if(m.type==='codec'){
+      CODEC_CONFIG={...CODEC_CONFIG,...m};
+      if(opusDecoder) initOpusDecoder(CODEC_CONFIG);
+      frameQueue=[]; draining=false; opusTimestamp=0;
+      nextPlayTime=audioCtx?audioCtx.currentTime+JITTER_FRAMES*(m.frameMs/1000)+0.05:0;
+    }
+    if(m.type==='stats'||m.type==='status'){
+      $('sPhone').textContent=m.phoneConnected?'✓ online':'✗ offline';
+      $('phoneOffline').classList.toggle('show',!m.phoneConnected);
+      if(m.volumeGain!=null&&gainNode&&!_userDragging&&!_muted){
+        gainNode.gain.value=m.volumeGain; _savedGain=m.volumeGain;
+        const sl=$('volSlider');
+        if(sl){
+          const pct=Math.min(Math.round(m.volumeGain*100),parseInt(sl.max));
+          sl.value=pct;
+          $('volLabel').textContent=pct+'%';
+          $('volIcon').textContent=pct===0?'🔇':pct<80?'🔈':'🔉';
+        }
+      }
+      if(m.framesRelayed!=null){
+        $('sFrames').textContent=m.framesRelayed.toLocaleString();
+        $('sKb').textContent=m.kbRelayed;
+        $('sUp').textContent=fmtUptime(m.uptimeSec);
+        // ── Live kbps: bytes delta between consecutive stats messages ──────────
+        const nowKbVal = parseFloat(m.kbRelayed);
+        const nowTime  = Date.now();
+        if(_prevKbTime>0 && nowKbVal>=_prevKbVal && nowTime>_prevKbTime){
+          const deltaSec=(nowTime-_prevKbTime)/1000;
+          const kbps=((nowKbVal-_prevKbVal)*8/deltaSec).toFixed(1);
+          $('sKbps').textContent=kbps;
+        }
+        _prevKbVal=nowKbVal; _prevKbTime=nowTime;
+      }
+      if(m.audioMode!=null){
+        const MODE_LABELS={'mic':'🎤 Mic','call':'📞 Call (mic only)','call_mixed':'📞 Call (both sides)','music':'🎵 Music','voice':'🎤 Voice'};
+        $('sMode').textContent=MODE_LABELS[m.audioMode]||m.audioMode;
+      }
+    }
+  }catch(_){}
+}
+function scheduleFrame(f32){
+  const sr=CODEC_CONFIG.sampleRate||16000;
+  const buf=audioCtx.createBuffer(1,f32.length,sr); buf.copyToChannel(f32,0);
+  const src=audioCtx.createBufferSource(); src.buffer=buf; src.connect(gainNode);
+  const now=audioCtx.currentTime;
+  if(nextPlayTime<now+0.005) nextPlayTime=now+RESYNC_MS/1000;
+  src.start(nextPlayTime); nextPlayTime+=buf.duration;
+}
+function updateStats(){ $('sBuf').textContent=Math.max(0,(nextPlayTime-(audioCtx?.currentTime||0))*1000).toFixed(0); }
+function drawWaveform(){
+  const cv=$('waveCanvas'),ctx=cv.getContext('2d'),W=cv.width,H=cv.height;
+  (function frame(){
+    requestAnimationFrame(frame); ctx.clearRect(0,0,W,H); if(!analyser) return;
+    const data=new Uint8Array(analyser.frequencyBinCount); analyser.getByteTimeDomainData(data);
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#22263a'); g.addColorStop(1,'#1a1d27');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    ctx.beginPath(); ctx.lineWidth=2.5; ctx.strokeStyle='#6c63e6'; ctx.shadowColor='#6c63e6'; ctx.shadowBlur=8;
+    const sl=W/data.length; let x=0;
+    for(let i=0;i<data.length;i++){ const y=(data[i]/128.0)*H/2; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); x+=sl; }
+    ctx.lineTo(W,H/2); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.beginPath(); ctx.lineWidth=1; ctx.strokeStyle='#2e3251'; ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+  })();
+}
+
+// ── Audio Cast ────────────────────────────────────────────────────────────────
+let _acFile = null;
+let _acAudioId = null;
+let _castLoopMode = 'off';  // 'off' | 'n' | 'infinite'
+let _castPaused   = false;
+let _castVolDebounce = null;
+
+// ── Seek bar state ────────────────────────────────────────────────────────────
+let _castDuration  = 0;     // total duration in seconds (from file metadata)
+let _castPosition  = 0;     // client-side playback position estimate (seconds)
+let _castTimer     = null;  // setInterval that advances _castPosition
+let _seekDragging  = false; // true while user is dragging the thumb
+
+function fmtTime(sec) {
+  const s = Math.floor(Math.max(0, sec));
+  const m = Math.floor(s / 60);
+  return m + ':' + String(s % 60).padStart(2, '0');
+}
+
+/** Read duration metadata from a File using a temporary Audio element. */
+function acReadDuration(file) {
+  _castDuration = 0;
+  const url = URL.createObjectURL(file);
+  const audio = new Audio();
+  audio.onloadedmetadata = () => {
+    _castDuration = isFinite(audio.duration) ? audio.duration : 0;
+    URL.revokeObjectURL(url);
+    const bar = $('castSeekBar');
+    bar.max   = Math.max(1, Math.round(_castDuration));
+    $('castSeekTotal').textContent   = fmtTime(_castDuration);
+    $('castSeekCurrent').textContent = '0:00';
+    bar.value = 0;
+  };
+  audio.onerror = () => URL.revokeObjectURL(url); // can't decode (e.g. FLAC in some browsers)
+  audio.src = url;
+}
+
+/** Advance the client-side position counter every second. */
+function castStartTimer() {
+  castStopTimer();
+  _castTimer = setInterval(() => {
+    if (_seekDragging || _castPaused) return;
+    _castPosition = Math.min(_castPosition + 1, _castDuration || Infinity);
+    if (!_seekDragging) updateSeekBar();
+  }, 1000);
+}
+function castStopTimer() {
+  if (_castTimer) { clearInterval(_castTimer); _castTimer = null; }
+}
+function castResetSeekBar() {
+  castStopTimer();
+  _castPosition = 0; _castDuration = 0; _seekDragging = false;
+  const bar = $('castSeekBar');
+  bar.value = 0; bar.max = 100; bar.disabled = true;
+  $('castSeekCurrent').textContent = '0:00';
+  $('castSeekTotal').textContent   = '0:00';
+}
+function updateSeekBar() {
+  const bar = $('castSeekBar');
+  bar.value = Math.round(_castPosition);
+  $('castSeekCurrent').textContent = fmtTime(_castPosition);
+}
+
+/** Called while the thumb is being dragged — preview time without sending. */
+function onSeekInput(v) {
+  _seekDragging = true;
+  $('castSeekCurrent').textContent = fmtTime(parseInt(v));
+}
+
+/** Called when the user releases the thumb — send seek command to device. */
+async function onSeekCommit(v) {
+  _seekDragging = false;
+  const positionSec = parseInt(v);
+  _castPosition = positionSec;
+  $('castSeekCurrent').textContent = fmtTime(positionSec);
+  try {
+    const r = await fetch('/audio-seek?id=' + encodeURIComponent(streamId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ positionMs: positionSec * 1000 }),
+    });
+    const j = await r.json();
+    if (j.ok) {
+      const via = j.channel === 'firebase' ? '🔥' : '⚡';
+      showToast('⏩ Seeked to ' + fmtTime(positionSec) + ' via ' + via, 'ok');
+      addLog('seek_audio', fmtTime(positionSec), null, true);
+    } else {
+      showToast('✗ Seek: ' + (j.error || 'failed'), 'err');
+    }
+  } catch (e) { showToast('✗ ' + e.message, 'err'); }
+}
+
+function acSetStatus(label, cls) {
+  const el = $('castStatus');
+  el.textContent = label;
+  el.className = 'cast-status ' + (cls || '');
+}
+function acDragOver(e) { e.preventDefault(); $('dropZone').classList.add('drag-over'); }
+function acDragLeave()  { $('dropZone').classList.remove('drag-over'); }
+function acDrop(e) {
+  e.preventDefault(); acDragLeave();
+  const f = e.dataTransfer.files[0];
+  if (f) acFileChosen(f);
+}
+function acFileChosen(f) {
+  if (!f) return;
+  _acFile = f; _acAudioId = null;
+  $('acFileName').textContent = f.name;
+  $('acFileSize').textContent = (f.size / 1024 / 1024).toFixed(2) + ' MB · ' + (f.type || 'audio/*');
+  $('acFileInfo').classList.add('show');
+  $('dropZone').style.display = 'none';
+  $('btnCast').disabled = false;
+  $('btnCast').style.opacity = '';
+  $('castProgress').classList.remove('show');
+  $('castBar').style.width = '0%';
+  acSetStatus('● file ready', '');
+  acReadDuration(f);   // ← populate duration & reset seekbar
+}
+function acClearFile() {
+  _acFile = null; _acAudioId = null;
+  $('acFileInfo').classList.remove('show');
+  $('dropZone').style.display = '';
+  $('btnCast').disabled = true;
+  $('btnCast').style.opacity = '.35';
+  $('castProgress').classList.remove('show');
+  acSetCastButtonsEnabled(false);
+  acSetStatus('● idle', '');
+  document.getElementById('acFileInput').value = '';
+  castResetSeekBar();   // ← clear seek bar
+}
+// ── Enable / disable post-cast transport buttons ──────────────────────────────
+function acSetCastButtonsEnabled(on) {
+  ['btnCastPause','btnCastResume','btnStopCast'].forEach(id => {
+    const b = $(id); if (!b) return;
+    b.disabled = !on;
+  });
+}
+async function acUploadAndCast() {
+  if (!_acFile) return;
+  $('btnCast').disabled = true;
+  $('castProgress').classList.add('show');
+  $('castProgressLabel').textContent = 'Uploading…';
+  $('castBar').style.width = '5%';
+  acSetStatus('⏳ uploading…', '');
+  try {
+    // Upload via XHR so we get progress events
+    const audioId = await new Promise((resolve, reject) => {
+      const fd = new FormData();
+      fd.append('audio', _acFile, _acFile.name);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/audio-upload');
+      xhr.upload.onprogress = ev => {
+        if (ev.lengthComputable) {
+          const pct = Math.round((ev.loaded / ev.total) * 80);
+          $('castBar').style.width = pct + '%';
+          $('castProgressLabel').textContent = 'Uploading… ' + pct + '%';
+        }
+      };
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          try { resolve(JSON.parse(xhr.responseText).audioId); }
+          catch { reject(new Error('Bad server response')); }
+        } else {
+          try { reject(new Error(JSON.parse(xhr.responseText).error || 'Upload failed')); }
+          catch { reject(new Error('Upload failed (' + xhr.status + ')')); }
+        }
+      };
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.send(fd);
+    });
+    _acAudioId = audioId;
+    $('castBar').style.width = '85%';
+    $('castProgressLabel').textContent = 'Sending play command…';
+    acSetStatus('⏳ casting…', '');
+    _castPaused = false;
+
+    // Choose loop action vs plain play
+    let endpoint, bodyObj;
+    if (_castLoopMode === 'infinite') {
+      endpoint = '/audio-loop-infinite?id=' + encodeURIComponent(streamId);
+      bodyObj  = { audioId };
+    } else if (_castLoopMode === 'n') {
+      const count = Math.max(1, parseInt($('loopCount').value) || 1);
+      endpoint = '/audio-loop?id=' + encodeURIComponent(streamId);
+      bodyObj  = { audioId, count };
+    } else {
+      endpoint = '/audio-play?id=' + encodeURIComponent(streamId);
+      bodyObj  = { audioId };
+    }
+
+    const playRes = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyObj),
+    });
+    const playJson = await playRes.json();
+    $('castBar').style.width = '100%';
+    if (playJson.ok) {
+      const via = playJson.channel === 'firebase' ? '🔥 Firebase' : '⚡ WS';
+      const loopTag = _castLoopMode === 'infinite' ? ' ∞ loop' : _castLoopMode === 'n' ? ' ×' + (bodyObj.count) + ' loop' : '';
+      showToast('✓ Casting' + loopTag + ' via ' + via + ': ' + _acFile.name, 'ok');
+      acSetStatus('● playing', 'playing');
+      $('castProgressLabel').textContent = '✓ Casting' + loopTag + ' via ' + via;
+      addLog('play_audio' + loopTag, _acFile.name, null, true);
+      acSetCastButtonsEnabled(true);
+      // ── Activate seek bar ─────────────────────────────────────────────────
+      _castPosition = 0;
+      const seekBar = $('castSeekBar');
+      seekBar.value    = 0;
+      seekBar.disabled = false;
+      $('castSeekCurrent').textContent = '0:00';
+      castStartTimer();
+    } else {
+      showToast('✗ ' + (playJson.error || 'Cast failed'), 'err');
+      acSetStatus('● error', 'error');
+      $('castProgressLabel').textContent = '✗ ' + (playJson.error || 'Cast failed');
+    }
+  } catch (e) {
+    showToast('✗ ' + e.message, 'err');
+    acSetStatus('● error', 'error');
+    $('castProgressLabel').textContent = '✗ ' + e.message;
+  } finally {
+    $('btnCast').disabled = !_acFile;
+    if (_acFile) $('btnCast').style.opacity = '';
+  }
+}
+// ── Pause ─────────────────────────────────────────────────────────────────────
+async function acPauseCast() {
+  acSetStatus('⏳ pausing…', '');
+  try {
+    const r = await fetch('/audio-pause?id=' + encodeURIComponent(streamId), { method: 'POST' });
+    const j = await r.json();
+    if (j.ok) {
+      _castPaused = true;
+      castStopTimer();   // ← freeze seek position
+      const via = j.channel === 'firebase' ? '🔥' : '⚡';
+      showToast('⏸ Paused via ' + via, 'ok');
+      acSetStatus('⏸ paused', '');
+      $('castPauseLabel').textContent = 'Paused';
+      $('btnCastPause').style.background = '#06d6a022';
+      $('btnCastPause').style.color = 'var(--accent2)';
+      $('btnCastPause').style.borderColor = '#06d6a055';
+      addLog('pause_audio', null, null, true);
+    } else {
+      showToast('✗ ' + (j.error || 'Pause failed'), 'err');
+      acSetStatus('● error', 'error');
+    }
+  } catch (e) { showToast('✗ ' + e.message, 'err'); acSetStatus('● error', 'error'); }
+}
+
+// ── Resume ────────────────────────────────────────────────────────────────────
+async function acResumeCast() {
+  acSetStatus('⏳ resuming…', '');
+  try {
+    const r = await fetch('/audio-resume?id=' + encodeURIComponent(streamId), { method: 'POST' });
+    const j = await r.json();
+    if (j.ok) {
+      _castPaused = false;
+      castStartTimer();   // ← resume seek position advancement
+      const via = j.channel === 'firebase' ? '🔥' : '⚡';
+      showToast('▶ Resumed via ' + via, 'ok');
+      acSetStatus('● playing', 'playing');
+      $('castPauseLabel').textContent = 'Pause';
+      $('btnCastPause').style.background = '';
+      $('btnCastPause').style.color = '';
+      $('btnCastPause').style.borderColor = '';
+      addLog('resume_audio', null, null, true);
+    } else {
+      showToast('✗ ' + (j.error || 'Resume failed'), 'err');
+      acSetStatus('● error', 'error');
+    }
+  } catch (e) { showToast('✗ ' + e.message, 'err'); acSetStatus('● error', 'error'); }
+}
+
+// ── Stop ──────────────────────────────────────────────────────────────────────
+async function acStopCast() {
+  acSetStatus('⏳ stopping…', '');
+  _castPaused = false;
+  $('castPauseLabel').textContent = 'Pause';
+  $('btnCastPause').style.background = '';
+  $('btnCastPause').style.color = '';
+  $('btnCastPause').style.borderColor = '';
+  try {
+    const r = await fetch('/audio-stop?id=' + encodeURIComponent(streamId), { method: 'POST' });
+    const j = await r.json();
+    if (j.ok) {
+      showToast('⏹ Audio stop sent', 'ok');
+      acSetStatus('● stopped', 'stopped');
+      addLog('stop_audio', null, null, true);
+      acSetCastButtonsEnabled(false);
+      castResetSeekBar();   // ← reset position to 0, disable slider
+    } else {
+      showToast('✗ ' + (j.error || 'Stop failed'), 'err');
+      acSetStatus('● error', 'error');
+    }
+  } catch (e) {
+    showToast('✗ ' + e.message, 'err');
+    acSetStatus('● error', 'error');
+  }
+}
+
+// ── Loop mode ─────────────────────────────────────────────────────────────────
+function setCastLoop(mode) {
+  _castLoopMode = mode;
+  ['loopOff','loopN','loopInfinite'].forEach(id => { const b=$(id); if(b){ b.classList.remove('active','active-green'); } });
+  if (mode === 'off')           { $('loopOff').classList.add('active');            showToast('Loop off', 'ok'); }
+  else if (mode === 'n')        { $('loopN').classList.add('active');              showToast('Loop ×N enabled — set count then Cast', 'ok'); }
+  else if (mode === 'infinite') { $('loopInfinite').classList.add('active-green'); showToast('🔁 Loop ∞ enabled', 'ok'); }
+}
+
+// ── Device cast volume ────────────────────────────────────────────────────────
+function setCastVolume(v) {
+  const pct = Math.round(v);
+  $('castVolLabel').textContent = pct + '%';
+  $('castVolIcon').textContent = pct === 0 ? '🔇' : pct < 50 ? '🔈' : '🔉';
+  clearTimeout(_castVolDebounce);
+  _castVolDebounce = setTimeout(() => {
+    const volume = pct / 100;
+    fetch('/audio-volume?id=' + encodeURIComponent(streamId), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ volume }),
+    })
+    .then(r => r.json())
+    .then(j => {
+      if (j.ok) showToast('🔊 Device vol → ' + pct + '%', 'ok');
+      else showToast('✗ Volume: ' + (j.error || 'failed'), 'err');
+    })
+    .catch(e => showToast('✗ ' + e.message, 'err'));
+  }, 300);
+}
+
+</script>
+</body>
+</html>

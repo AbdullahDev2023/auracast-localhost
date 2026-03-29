@@ -1,0 +1,112 @@
+name: AuraCast CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-check:
+    name: Server
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run server quality gates
+        run: npm run check
+
+  android-gates:
+    name: Android
+    runs-on: windows-latest
+    needs: server-check
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Restore Firebase config
+        shell: pwsh
+        env:
+          GOOGLE_SERVICES_JSON_RELEASE: ${{ secrets.GOOGLE_SERVICES_JSON_RELEASE }}
+          GOOGLE_SERVICES_JSON_DEBUG: ${{ secrets.GOOGLE_SERVICES_JSON_DEBUG }}
+        run: |
+          if (-not $env:GOOGLE_SERVICES_JSON_RELEASE) {
+            throw "GOOGLE_SERVICES_JSON_RELEASE secret is required for Android CI."
+          }
+
+          New-Item -ItemType Directory -Path "app\src\debug" -Force | Out-Null
+          Set-Content -Path "app\google-services.json" -Value $env:GOOGLE_SERVICES_JSON_RELEASE -NoNewline
+
+          if ($env:GOOGLE_SERVICES_JSON_DEBUG) {
+            Set-Content -Path "app\src\debug\google-services.json" -Value $env:GOOGLE_SERVICES_JSON_DEBUG -NoNewline
+          } else {
+            Set-Content -Path "app\src\debug\google-services.json" -Value $env:GOOGLE_SERVICES_JSON_RELEASE -NoNewline
+          }
+
+      - name: Run Android doctor
+        shell: pwsh
+        run: .\scripts\android-doctor.ps1
+
+      - name: Run Android quality gates
+        shell: pwsh
+        run: .\gradlew.bat lintDebug lintRelease testDebugUnitTest testReleaseUnitTest assembleDebug assembleRelease --stacktrace
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-lint
+          path: app/build/reports/lint/
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-tests
+          path: app/build/reports/tests/
+
+      - name: Upload debug APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/*.apk
+
+      - name: Upload release APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: app/build/outputs/apk/release/*.apk

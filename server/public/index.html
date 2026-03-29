@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AuraCast — Dashboard</title>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d27;--card:#22263a;--accent:#6c63e6;--green:#06d6a0;--yellow:#ffd166;--red:#ef476f;--txt:#fff;--txt2:#888;--border:#2e3251}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 20px 60px}
+header h1{font-size:1.9rem;font-weight:700;letter-spacing:.06em;text-align:center}
+.subtitle{color:var(--txt2);font-size:.82rem;margin-bottom:36px;text-align:center;margin-top:4px}
+.grid{width:100%;max-width:960px;display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:18px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:14px}
+.card.streaming{border-color:var(--green)}
+.card.ready{border-color:var(--accent)}
+.card.offline{border-color:#ffd16640;opacity:.85}
+.card-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card-name{font-size:1rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.badge{padding:3px 10px;border-radius:12px;font-size:.74rem;font-weight:700;display:inline-flex;align-items:center;gap:5px;border:1px solid transparent}
+.badge.streaming{color:var(--green);border-color:var(--green);background:#06d6a012}
+.badge.ready{color:var(--accent);border-color:var(--accent);background:#6c63e612}
+.badge.offline{color:var(--yellow);border-color:#ffd16660;background:#ffd1660d}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.dot.blink{animation:blink 1s step-end infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.meta{display:flex;gap:16px;font-size:.78rem;color:var(--txt2);font-family:monospace;flex-wrap:wrap}
+.meta span{color:var(--txt);font-weight:600}
+.hint{font-size:.73rem;text-align:center;padding:2px 0}
+.hint.ready{color:var(--accent)} .hint.offline{color:var(--yellow)}
+.btn-row{display:flex;gap:8px}
+.btn{flex:1;padding:10px 0;border-radius:10px;border:none;font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s}
+.btn:hover:not(:disabled){opacity:.8}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-listen{background:var(--accent);color:#fff}
+.btn-start{background:var(--green);color:#0f1117}
+.btn-stop{background:var(--red);color:#fff}
+.btn-wake{background:var(--yellow);color:#1a1a1a;flex:0 0 auto;padding:10px 14px}
+.btn-fb{background:#ffca2820;color:#ffca28;border:1px solid #ffca2855;flex:0 0 auto;padding:10px 12px;font-size:.82rem}
+.btn-fb:hover:not(:disabled){background:#ffca2838}
+.fb-sent{font-size:.7rem;color:#ffca28;text-align:center;margin-top:4px;min-height:16px}
+.empty{text-align:center;color:var(--txt2);font-size:.9rem;margin-top:60px;width:100%}
+.empty .big{font-size:2.5rem;margin-bottom:10px}
+.refresh{position:fixed;bottom:16px;right:20px;font-size:.72rem;color:var(--txt2)}
+.refresh span{color:var(--green)}
+</style>
+</head>
+<body>
+<header><h1>🎙 AuraCast</h1></header>
+<p class="subtitle">All devices • refreshes every 2 s &nbsp;|&nbsp; <a href="/audio-cast" style="color:var(--accent);text-decoration:none;">🎵 Audio Cast</a></p>
+<div class="grid" id="grid"></div>
+<div class="refresh">Updated <span id="upd">—</span></div>
+<script>
+// ── Firebase init ─────────────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey:            "AIzaSyCGDP96k8yaqmQg9kzcGqjPRMjBEz88EGc",
+  authDomain:        "auracast-df815.firebaseapp.com",
+  databaseURL:       "https://auracast-df815-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "auracast-df815",
+  storageBucket:     "auracast-df815.firebasestorage.app",
+  messagingSenderId: "283586693826",
+  appId:             "1:283586693826:web:479ceb723259cf1e25895b"
+});
+const fbDb = firebase.database();
+
+function genId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+}
+
+// ── Send command directly via Firebase RTDB ───────────────────────────────────
+async function sendFirebaseCmd(id, action, btn, url) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳';
+  try {
+    const commandId = genId();
+    const payload = { commandId, command: action, ts: Date.now(), source: 'firebase',
+                      processed: false, processedAt: null };
+    if (url) payload.url = url;
+    await fbDb.ref('users/' + id + '/control').set(payload);
+    btn.textContent = '🔥✅';
+    const statusEl = btn.closest('.card')?.querySelector('.fb-sent');
+    if (statusEl) { statusEl.textContent = '🔥 Queued in Firebase — phone gets it on next connect'; setTimeout(() => { statusEl.textContent = ''; }, 4000); }
+  } catch(e) { btn.textContent = '❌'; console.error(e); }
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2500);
+}
+
+// ── Send command via server WebSocket ─────────────────────────────────────────
+async function sendControl(id, action, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳';
+  try {
+    const r = await fetch(`/stream-control?id=${encodeURIComponent(id)}&action=${action}`, {method:'POST'});
+    const j = await r.json();
+    if (j.ok) {
+      const ch = j.channel === 'firebase' ? '🔥 via Firebase' : '⚡ via WS';
+      btn.textContent = `✅ ${ch}`;
+    } else { btn.textContent = '❌'; }
+  } catch { btn.textContent = '❌'; }
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2500);
+}
+
+function fmtTime(s) {
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=s%60;
+  return h?`${h}h ${m}m`:m?`${m}m ${ss}s`:`${ss}s`;
+}
+
+async function refresh() {
+  try {
+    const list = await fetch('/streams').then(r=>r.json());
+    document.getElementById('upd').textContent = new Date().toLocaleTimeString();
+    const grid = document.getElementById('grid');
+    if (!list.length) {
+      grid.innerHTML = '<div class="empty"><div class="big">📡</div>No devices yet.<br>Open AuraCast on an Android device.</div>';
+      return;
+    }
+    grid.innerHTML = list.map(s => {
+      const connected  = s.phoneConnected;
+      const streaming  = connected && s.streamingActive;
+      const cardClass  = streaming ? 'streaming' : connected ? 'ready' : 'offline';
+      const badge      = streaming
+        ? `<span class="badge streaming"><span class="dot blink"></span>LIVE</span>`
+        : connected
+        ? `<span class="badge ready"><span class="dot"></span>Ready</span>`
+        : `<span class="badge offline"><span class="dot"></span>Offline</span>`;
+
+      const uptime = s.connectedAt ? fmtTime(Math.floor((Date.now()-s.connectedAt)/1000)) : '—';
+      const offlineFor = (!connected && s.disconnectedAt)
+        ? fmtTime(Math.floor((Date.now()-s.disconnectedAt)/1000)) + ' ago' : null;
+
+      const hint = !connected
+        ? `<div class="hint offline">📴 Offline — last seen ${offlineFor||'—'}</div>`
+        : !streaming
+        ? `<div class="hint ready">✅ Connected — click ▶ Start to stream</div>`
+        : '';
+
+      const playerUrl = `/player?id=${encodeURIComponent(s.id)}`;
+
+      // Control buttons — WS first, Firebase as explicit option
+      let ctrlBtn = '';
+      if (connected && streaming) {
+        ctrlBtn = `
+          <button class="btn btn-stop"  onclick="sendControl('${s.id}','stop',this)">⏹ Stop</button>
+          <button class="btn btn-fb"    onclick="sendFirebaseCmd('${s.id}','stop',this)" title="Send stop via Firebase RTDB">🔥</button>`;
+      } else if (connected && !streaming) {
+        ctrlBtn = `
+          <button class="btn btn-start" onclick="sendControl('${s.id}','start',this)">▶ Start</button>
+          <button class="btn btn-fb"    onclick="sendFirebaseCmd('${s.id}','start',this)" title="Send start via Firebase RTDB">🔥</button>`;
+      } else {
+        // Phone offline — WS impossible, Firebase is the only option
+        ctrlBtn = `<button class="btn btn-fb" style="flex:1" onclick="sendFirebaseCmd('${s.id}','start',this)" title="Queue start in Firebase — phone picks it up on next connect">🔥 Wake via Firebase</button>`;
+      }
+
+      return `
+        <div class="card ${cardClass}">
+          <div class="card-top">
+            <div class="card-name" title="${s.id}">${s.displayName}</div>
+            ${badge}
+          </div>
+          <div class="meta">
+            <div>Listeners <span>${s.listeners}</span></div>
+            <div>${connected?'Uptime':'Offline'} <span>${connected?uptime:(offlineFor||'—')}</span></div>
+            <div>Data <span>${s.kbRelayed} KB</span></div>
+          </div>
+          ${hint}
+          <div class="btn-row">
+            <button class="btn btn-listen" onclick="window.open('${playerUrl}','_blank')">
+              ${streaming?'🎧 Listen':'▶ Open Player'}
+            </button>
+            ${ctrlBtn}
+          </div>
+          <div class="fb-sent"></div>
+        </div>`;
+    }).join('');
+  } catch {
+    document.getElementById('grid').innerHTML = '<div class="empty"><div class="big">⚠️</div>Cannot reach server.</div>';
+  }
+}
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

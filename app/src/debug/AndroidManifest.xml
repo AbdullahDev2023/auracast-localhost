@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <!-- ✅ FIX: Disable Crashlytics in debug builds.
+             Prevents a 4-second main-thread timeout in FirebaseInitProvider.onCreate().
+             Root cause: Crashlytics.finishInitSynchronously() blocks the main thread
+             waiting for Google servers in every debug launch — useless in dev.
+             Log fixed: "Crashlytics timed out during initialization. TimeoutException"
+             Log fixed: "com.akdevelopers.auracast.debug.firebaseinitprovider onCreate use 4082 ms!" -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
+
+        <!-- Expose the service only in debug so adb-based smoke tests can start it. -->
+        <service
+            android:name="com.akdevelopers.auracast.service.StreamingService"
+            android:exported="true"
+            android:foregroundServiceType="microphone"
+            tools:ignore="ExportedService"
+            tools:replace="android:exported" />
+    </application>
+</manifest>

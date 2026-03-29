@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Background -->
+    <color name="bg_dark">#FF0F1117</color>
+    <color name="bg_surface">#FF1A1D27</color>
+
+    <!-- Brand / accent -->
+    <color name="accent_purple">#FF6C63E6</color>
+
+    <!-- Text -->
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#99FFFFFF</color>
+
+    <!-- Status indicators -->
+    <color name="status_idle">#88FFFFFF</color>
+    <color name="status_connecting">#FFFFD166</color>
+    <color name="status_live">#FF06D6A0</color>
+    <color name="status_error">#FFEF476F</color>
+</resources>
