@@ -875,7 +875,7 @@ function connectWebSocket(){
     if(!started) return; // user hit Stop — don't reconnect
     setStatus('Reconnecting…','connecting');
     if(_loopEnabled || true) { // always reconnect unless user stops; loop flag is for cast files
-      reconnectTimer=setTimeout(connectWebSocket,3000);
+      reconnectTimer=setTimeout(connectWebSocket,7000);
     }
   };
   ws.onerror=()=>setStatus('Connection error','error');

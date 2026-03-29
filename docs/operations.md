@@ -43,7 +43,7 @@ Copy-Item .\server\.env.example .\server\.env
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PORT` | `3000` | HTTP / WebSocket server port |
+| `PORT` | `7000` | HTTP / WebSocket server port |
 | `UDP_PORT` | `4001` | UDP relay port for audio frames |
 | `FIREBASE_DB_URL` | *(hardcoded fallback)* | Firebase RTDB URL |
 | `FIREBASE_DB_SECRET` | — | Firebase legacy secret for fallback commands |
@@ -57,11 +57,11 @@ Copy-Item .\server\.env.example .\server\.env
 | `RATE_WINDOW_MS` | `10000` | Rate limit window |
 | `MAX_REQUESTS_PER_WINDOW` | `120` | Max requests per window per IP |
 | `SHUTDOWN_TIMEOUT_MS` | `10000` | Graceful shutdown timeout |
-| `WS_PING_INTERVAL_MS` | `30000` | WebSocket heartbeat interval |
+| `WS_PING_INTERVAL_MS` | `70000` | WebSocket heartbeat interval |
 | `STALE_THRESHOLD_MS` | `90000` | Terminate phone socket after this idle time |
 | `STALE_CHECK_MS` | `15000` | How often to check for stale sockets |
 | `STATS_INTERVAL_MS` | `2000` | How often to push stats frames to browsers |
-| `CHANNEL_GRACE_MS` | `300000` | Grace period before removing an empty channel |
+| `CHANNEL_GRACE_MS` | `700000` | Grace period before removing an empty channel |
 | `AUDIO_CAST_MAX_SIZE_MB` | `50` | Max upload size for Audio Cast files |
 | `AUDIO_CAST_TTL_HOURS` | `2` | Auto-delete uploaded audio after N hours |
 | `AUDIO_CAST_STORE_DIR` | `.local/audio` | Storage path relative to server root |
@@ -147,7 +147,7 @@ That launcher:
 - loads `server\.env`
 - starts the TypeScript relay via `npm run start:local`
 - starts ngrok
-- opens `http://localhost:3000`
+- opens `http://localhost:7000`
 
 Manual server run:
 
@@ -168,7 +168,7 @@ docker build -t auracast-server .
 Run (HTTP + UDP):
 
 ```powershell
-docker run --rm -p 3000:3000 -p 4001:4001/udp --env-file .env auracast-server
+docker run --rm -p 7000:7000 -p 4001:4001/udp --env-file .env auracast-server
 ```
 
 Health endpoints:
@@ -213,7 +213,7 @@ on the Android device remotely — even when the app is swiped from recents.
 
 1. Set `PUBLIC_HOST` in `server/.env` to your machine's LAN IP or ngrok URL, e.g.:
    ```
-   PUBLIC_HOST=192.168.1.42:3000
+   PUBLIC_HOST=192.168.1.42:7000
    ```
    Without this, the download URL sent to the Android device will be `localhost`,
    which the device cannot reach. If using ngrok, set it to your ngrok hostname:
@@ -221,7 +221,7 @@ on the Android device remotely — even when the app is swiped from recents.
    PUBLIC_HOST=abc123.ngrok-free.app
    ```
 
-2. Open `http://localhost:3000/audio-cast` in the operator browser.
+2. Open `http://localhost:7000/audio-cast` in the operator browser.
 
 3. Select the connected stream, upload an audio file (MP3, AAC, OGG, WAV — up to
    `AUDIO_CAST_MAX_SIZE_MB`, default 50 MB).

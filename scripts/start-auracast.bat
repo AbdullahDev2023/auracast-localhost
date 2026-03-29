@@ -46,7 +46,7 @@ if not exist "%SERVER_DIR%\node_modules\ws" (
 )
 
 :: ── Start Node server in a new window ────────────────────────────────────────
-echo  [1/3] Starting AuraCast relay server on port 3000...
+echo  [1/3] Starting AuraCast relay server on port 7000...
 start "AuraCast Server" cmd /k "cd /d "%SERVER_DIR%" && npm run start:local"
 timeout /t 2 /nobreak >nul
 
@@ -61,9 +61,9 @@ echo.
 
 where ngrok >nul 2>&1
 if %errorlevel% equ 0 (
-    start "AuraCast ngrok" cmd /k "ngrok http --domain=nonmanifestly-smudgeless-lamonica.ngrok-free.dev 3000"
+    start "AuraCast ngrok" cmd /k "ngrok http --domain=nonmanifestly-smudgeless-lamonica.ngrok-free.dev 7000"
 ) else if exist "%ROOT%\ngrok.exe" (
-    start "AuraCast ngrok" cmd /k "%ROOT%\ngrok.exe http --domain=nonmanifestly-smudgeless-lamonica.ngrok-free.dev 3000"
+    start "AuraCast ngrok" cmd /k "%ROOT%\ngrok.exe http --domain=nonmanifestly-smudgeless-lamonica.ngrok-free.dev 7000"
 ) else (
     echo  [WARN] ngrok.exe not found in PATH or project root.
     echo         Download from https://ngrok.com/download and place
@@ -74,7 +74,7 @@ if %errorlevel% equ 0 (
 :: ── Open browser ─────────────────────────────────────────────────────────────
 echo  [3/3] Opening dashboard in browser...
 timeout /t 3 /nobreak >nul
-start "" "http://localhost:3000"
+start "" "http://localhost:7000"
 
 echo.
 echo  All services started.

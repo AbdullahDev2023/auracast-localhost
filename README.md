@@ -77,7 +77,7 @@ npm run start:local
 # Build the server container (HTTP + UDP ports)
 cd .\server
 docker build -t auracast-server .
-docker run --rm -p 3000:3000 -p 4001:4001/udp --env-file .env auracast-server
+docker run --rm -p 7000:7000 -p 4001:4001/udp --env-file .env auracast-server
 ```
 
 

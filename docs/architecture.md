@@ -190,4 +190,4 @@ Allowed quality values (validated server-side):
 - Local development: `scripts/start-auracast.bat` (server + ngrok).
 - CI: server checks on Linux; Android gates on Windows with JDK 21.
 - Container: `server/Dockerfile` + `server/.env.production.example`.
-  Both port 3000 (HTTP/WS) and port 4001/udp (UDP relay) must be mapped.
+  Both port 7000 (HTTP/WS) and port 4001/udp (UDP relay) must be mapped.

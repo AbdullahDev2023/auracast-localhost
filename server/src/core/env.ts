@@ -28,7 +28,7 @@ export interface EnvConfig {
     audioCastStoreDir: string;
     /**
      * Explicit public host:port the Android device uses to download audio files.
-     * Set to your PC's LAN IP when running locally, e.g. "192.168.1.42:3000".
+     * Set to your PC's LAN IP when running locally, e.g. "192.168.1.42:7000".
      * Leave empty to auto-detect from OS network interfaces.
      */
     publicHost: string;
@@ -102,17 +102,17 @@ export function loadEnvConfig(projectRoot: string): EnvConfig {
 
     return {
         nodeEnv: process.env.NODE_ENV?.trim() || 'development',
-        port: parsePositiveInt(process.env.PORT, 3000, 'PORT'),
+        port: parsePositiveInt(process.env.PORT, 7000, 'PORT'),
         firebaseDbUrl: process.env.FIREBASE_DB_URL?.trim()
             || 'https://auracast-df815-default-rtdb.asia-southeast1.firebasedatabase.app',
         firebaseSecret: process.env.FIREBASE_DB_SECRET?.trim() || '',
         firebaseServiceAccountPath: resolveServiceAccountPath(projectRoot),
         firebaseServiceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim() || null,
-        wsPingIntervalMs: parsePositiveInt(process.env.WS_PING_INTERVAL_MS, 30000, 'WS_PING_INTERVAL_MS'),
+        wsPingIntervalMs: parsePositiveInt(process.env.WS_PING_INTERVAL_MS, 70000, 'WS_PING_INTERVAL_MS'),
         staleThresholdMs: parsePositiveInt(process.env.STALE_THRESHOLD_MS, 90000, 'STALE_THRESHOLD_MS'),
         staleCheckMs: parsePositiveInt(process.env.STALE_CHECK_MS, 15000, 'STALE_CHECK_MS'),
         statsIntervalMs: parsePositiveInt(process.env.STATS_INTERVAL_MS, 2000, 'STATS_INTERVAL_MS'),
-        channelGraceMs: parsePositiveInt(process.env.CHANNEL_GRACE_MS, 300000, 'CHANNEL_GRACE_MS'),
+        channelGraceMs: parsePositiveInt(process.env.CHANNEL_GRACE_MS, 700000, 'CHANNEL_GRACE_MS'),
         serverVolumeGain: parsePositiveNumber(process.env.SERVER_VOLUME_GAIN, 3.0, 'SERVER_VOLUME_GAIN'),
         logLevel: parseLogLevel(process.env.LOG_LEVEL),
         logFormat: parseLogFormat(process.env.LOG_FORMAT),

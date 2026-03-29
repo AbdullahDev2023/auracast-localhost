@@ -2,7 +2,7 @@
 <network-security-config>
     <!--
         Allow plain-HTTP to localhost only.
-        The dev Node server runs on http://localhost:3000 — without this, Android's
+        The dev Node server runs on http://localhost:7000 — without this, Android's
         default "no cleartext" policy throws UnknownServiceException at download time.
     -->
     <domain-config cleartextTrafficPermitted="true">

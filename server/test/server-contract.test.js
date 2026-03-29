@@ -55,7 +55,7 @@ describe('AuraCast server contracts', () => {
       rateLimitEnabled: false,
       rateWindowMs: 1000,
       maxRequestsPerWindow: 100,
-      shutdownTimeoutMs: 3000,
+      shutdownTimeoutMs: 7000,
       audioCastMaxSizeMb: 50,
       audioCastTtlHours: 2,
       audioCastStoreDir: '.local/audio-test-contract',
